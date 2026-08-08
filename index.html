@@ -9,6 +9,16 @@
     gtag('js', new Date());
     gtag('config', 'G-NW09V1DXZT');
   </script>
+  <script>
+    /* Make direct form links reliable on iPhone before responsive layout runs. */
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var hash = window.location.hash;
+      if (params.get('source') === 'bin' || hash === '#booking' || hash === '#bookingForm' || hash === '#fname') {
+        document.documentElement.classList.add('qr-form-mode');
+      }
+    })();
+  </script>
 
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -691,6 +701,12 @@
     .booking-left { padding-top: .5rem; }
     .booking-left h2 { margin-bottom: 1rem; }
     .booking-left p { font-size: 1rem; margin-bottom: 2rem; }
+    html.qr-form-mode .booking-left { display: none; }
+    html.qr-form-mode .booking-inner {
+      grid-template-columns: minmax(0, 760px);
+      justify-content: center;
+      gap: 0;
+    }
     .booking-promise {
       display: flex;
       flex-direction: column;
@@ -1451,8 +1467,7 @@
      positioning the form. Native hash scrolling runs too early in iOS Safari
      and can be displaced while fonts and responsive content finish loading. */
   (function() {
-    var params = new URLSearchParams(window.location.search);
-    if (params.get('source') !== 'bin') return;
+    if (!document.documentElement.classList.contains('qr-form-mode')) return;
 
     if (window.location.hash) {
       history.replaceState(null, '', window.location.pathname + window.location.search);
