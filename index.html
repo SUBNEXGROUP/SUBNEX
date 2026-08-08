@@ -1295,7 +1295,7 @@
 
         </div>
         <div class="fade-up d2">
-          <div class="form-card">
+          <div class="form-card" id="bookingFormCard">
             <form id="bookingForm" action="https://api.web3forms.com/submit" method="POST" novalidate>
               <input type="hidden" name="access_key" value="15760e61-18a7-4c6f-ab5a-6c344a1a69ea"/>
               <input type="hidden" name="subject" value="New Collection Booking — Subnex Group"/>
@@ -1446,6 +1446,55 @@
       }
     });
   });
+
+  /* QR links from clothing banks: wait for the final mobile layout before
+     positioning the form. Native hash scrolling runs too early in iOS Safari
+     and can be displaced while fonts and responsive content finish loading. */
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('source') !== 'bin') return;
+
+    if (window.location.hash) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+
+    var correctionOne;
+    var correctionTwo;
+
+    function scrollToBinBookingForm() {
+      var target = document.getElementById('bookingFormCard');
+      var nav = document.getElementById('navbar');
+      if (!target) return;
+
+      var navHeight = nav ? nav.getBoundingClientRect().height : 80;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - navHeight - 12;
+      window.scrollTo(0, Math.max(0, Math.round(top)));
+    }
+
+    function scheduleBinBookingScroll() {
+      clearTimeout(correctionOne);
+      clearTimeout(correctionTwo);
+
+      var fontsReady = document.fonts && document.fonts.ready
+        ? document.fonts.ready
+        : Promise.resolve();
+
+      fontsReady.then(function() {
+        requestAnimationFrame(function() {
+          scrollToBinBookingForm();
+          correctionOne = setTimeout(scrollToBinBookingForm, 350);
+          correctionTwo = setTimeout(scrollToBinBookingForm, 1200);
+        });
+      });
+    }
+
+    if (document.readyState === 'complete') {
+      scheduleBinBookingScroll();
+    } else {
+      window.addEventListener('load', scheduleBinBookingScroll, { once: true });
+    }
+    window.addEventListener('pageshow', scheduleBinBookingScroll);
+  })();
 
   /* ══════════════════════════════════════════
      4. INTERSECTION OBSERVER — SCROLL REVEALS
