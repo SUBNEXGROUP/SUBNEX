@@ -264,32 +264,70 @@
     .hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(5px,5px); }
     .hamburger.open span:nth-child(2) { opacity: 0; }
     .hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(5px,-5px); }
+    .mobile-nav-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(6,6,14,.55);
+      -webkit-backdrop-filter: blur(3px);
+      backdrop-filter: blur(3px);
+      z-index: 998;
+      opacity: 0;
+      transition: opacity .3s ease;
+      pointer-events: none;
+    }
+    .mobile-nav-backdrop.open { opacity: 1; pointer-events: auto; }
     .mobile-nav {
       display: none;
       position: fixed;
-      top: 74px; left: 0; right: 0;
-      background: rgba(13,13,26,.97);
-      backdrop-filter: blur(20px);
+      top: 0; left: 0; right: 0;
+      background: rgba(13,13,26,.98);
+      -webkit-backdrop-filter: blur(24px);
+      backdrop-filter: blur(24px);
       border-bottom: 1px solid var(--border);
-      padding: 1.5rem;
+      border-radius: 0 0 26px 26px;
+      box-shadow: 0 22px 50px rgba(0,0,0,.5);
+      padding: 86px 1.5rem 1.6rem;
       z-index: 999;
-      transform: translateY(-8px);
+      transform: translateY(-14px);
       opacity: 0;
-      transition: transform .28s ease, opacity .28s ease;
+      transition: transform .32s cubic-bezier(.4,0,.2,1), opacity .28s ease;
       pointer-events: none;
     }
     .mobile-nav.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
-    .mobile-nav a {
+    .mobile-nav .mob-link {
       display: block;
-      padding: .9rem 0;
+      padding: 1.05rem .15rem;
       font-family: var(--head);
-      font-size: 1rem;
+      font-size: 1.02rem;
       font-weight: 600;
       color: var(--off-white);
-      border-bottom: 1px solid var(--border);
+      letter-spacing: -.01em;
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: color var(--ease), opacity .3s ease, transform .3s ease;
     }
-    .mobile-nav a:hover { color: var(--green); }
-    .mobile-nav .btn { margin-top: 1.2rem; width: 100%; justify-content: center; }
+    .mobile-nav .mob-link + .mob-link { border-top: 1px solid var(--border); }
+    .mobile-nav .mob-link:hover,
+    .mobile-nav .mob-link:active { color: var(--green); }
+    .mobile-nav .btn {
+      display: flex;
+      width: 100%;
+      justify-content: center;
+      padding: 1.05rem 2rem;
+      margin-top: 1.5rem;
+      font-size: .95rem;
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: opacity .3s ease, transform .3s ease, background var(--ease);
+    }
+    .mobile-nav.open .mob-link,
+    .mobile-nav.open .btn { opacity: 1; transform: translateY(0); }
+    .mobile-nav.open .mob-link:nth-child(1) { transition-delay: .06s; }
+    .mobile-nav.open .mob-link:nth-child(2) { transition-delay: .11s; }
+    .mobile-nav.open .mob-link:nth-child(3) { transition-delay: .16s; }
+    .mobile-nav.open .mob-link:nth-child(4) { transition-delay: .21s; }
+    .mobile-nav.open .btn { transition-delay: .27s; }
 
     /* ════════════════════════════════════════════════
        HERO — canvas particles + gradient mesh
@@ -1015,6 +1053,7 @@
       .nav-links, .nav-cta { display: none; }
       .hamburger { display: flex; }
       .mobile-nav { display: block; }
+      .mobile-nav-backdrop { display: block; }
       .steps-grid { grid-template-columns: 1fr; }
       .steps-grid::before { display: none; }
       .booking-inner { grid-template-columns: 1fr; gap: 2.5rem; }
@@ -1089,6 +1128,7 @@
   </nav>
 
   <!-- MOBILE NAV -->
+  <div class="mobile-nav-backdrop" id="mobileNavBackdrop"></div>
   <div class="mobile-nav" id="mobileNav">
     <a href="#how" class="mob-link">How It Works</a>
     <a href="#accept" class="mob-link">We Accept</a>
@@ -1437,17 +1477,24 @@
   ══════════════════════════════════════════ */
   const hamburger = document.getElementById('hamburger');
   const mobileNav = document.getElementById('mobileNav');
-  hamburger.addEventListener('click', () => {
-    const open = hamburger.classList.toggle('open');
+  const mobileNavBackdrop = document.getElementById('mobileNavBackdrop');
+
+  function setMenu(open) {
+    hamburger.classList.toggle('open', open);
     mobileNav.classList.toggle('open', open);
+    if (mobileNavBackdrop) mobileNavBackdrop.classList.toggle('open', open);
+    hamburger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
     document.body.style.overflow = open ? 'hidden' : '';
+  }
+
+  hamburger.addEventListener('click', () => {
+    setMenu(!hamburger.classList.contains('open'));
   });
+  if (mobileNavBackdrop) {
+    mobileNavBackdrop.addEventListener('click', () => setMenu(false));
+  }
   document.querySelectorAll('.mob-link, .mobile-nav .btn').forEach(l => {
-    l.addEventListener('click', () => {
-      hamburger.classList.remove('open');
-      mobileNav.classList.remove('open');
-      document.body.style.overflow = '';
-    });
+    l.addEventListener('click', () => setMenu(false));
   });
 
   /* ══════════════════════════════════════════
