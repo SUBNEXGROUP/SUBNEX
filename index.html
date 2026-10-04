@@ -1356,6 +1356,10 @@
               <input type="hidden" name="access_key" value="15760e61-18a7-4c6f-ab5a-6c344a1a69ea"/>
               <input type="hidden" name="subject" value="New Collection Booking — Subnex Group"/>
               <input type="hidden" name="from_name" value="Subnex Website"/>
+              <div style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden" aria-hidden="true">
+                <label for="website">Leave this field empty</label>
+                <input type="text" id="website" name="botcheck" tabindex="-1" autocomplete="off"/>
+              </div>
               <div class="form-row">
                 <div class="form-group">
                   <label for="fname">Full Name *</label>
@@ -1407,7 +1411,7 @@
             <div class="form-success" id="formSuccess">
               <div class="success-icon">✓</div>
               <h3>Request received!</h3>
-              <p>Thank you! We’ve received your request. We’ll email you within 24 hours to confirm your collection date. Please keep your bags indoors until you receive our confirmation.</p>
+              <p>Thank you! We’ve received your request. We’ve sent you a confirmation email, and within one working day we’ll send you a collection date for your area. Please keep your bags indoors until you receive our confirmation.</p>
             </div>
           </div>
         </div>
@@ -1733,6 +1737,13 @@
       });
     });
 
+    // Заявка уходит сразу в приложение SUBNEX (и клиенту письмо «заявка принята»),
+    // а копия — письмом на info@ через Web3Forms. Успех, если дошло хоть одним путём.
+    var openedAt = Date.now();
+    var APP_URL = 'https://hgnihlkiccfbrejbpojp.supabase.co/rest/v1/rpc/subnex_web_booking';
+    var APP_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ';
+    function val(id) { return document.getElementById(id).value.trim(); }
+
     form.addEventListener('submit', function(e) {
       e.preventDefault();
       if (validate()) {
@@ -1744,12 +1755,24 @@
         // Add quantity from hidden input
         data.set('quantity', document.getElementById('quantityInput').value);
 
-        fetch('https://api.web3forms.com/submit', {
+        var toApp = fetch(APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: APP_KEY, Authorization: 'Bearer ' + APP_KEY },
+          body: JSON.stringify({ p_data: {
+            name: val('fname'), phone: val('phone'), email: val('email'), postcode: val('postcode'),
+            address: val('address'), bags: document.getElementById('quantityInput').value, notes: val('notes'),
+            website: document.getElementById('website').value, elapsed_ms: Date.now() - openedAt
+          } })
+        }).then(function(res) { return res.ok; }).catch(function() { return false; });
+
+        var toMail = fetch('https://api.web3forms.com/submit', {
           method: 'POST',
           body: data,
           headers: { 'Accept': 'application/json' }
-        }).then(function(res) {
-          if (res.ok) {
+        }).then(function(res) { return res.ok; }).catch(function() { return false; });
+
+        Promise.all([toApp, toMail]).then(function(r) {
+          if (r[0] || r[1]) {
             form.style.display = 'none';
             success.style.display = 'block';
             success.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1758,10 +1781,6 @@
             btn.disabled = false;
             alert('Something went wrong. Please email us directly at info@subnex.co.uk');
           }
-        }).catch(function() {
-          btn.textContent = 'Try Again';
-          btn.disabled = false;
-          alert('Something went wrong. Please email us directly at info@subnex.co.uk');
         });
       }
     });
