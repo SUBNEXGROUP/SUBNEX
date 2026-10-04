@@ -1411,7 +1411,7 @@
             <div class="form-success" id="formSuccess">
               <div class="success-icon">✓</div>
               <h3>Request received!</h3>
-              <p>Thank you! We’ve received your request. We’ve sent you a confirmation email, and within one working day we’ll send you a collection date for your area. Please keep your bags indoors until you receive our confirmation.</p>
+              <p>Thank you! We’ve received your request. Please check your email — we’ll send you a collection date for your area shortly. You can confirm it or choose another day that suits you. Please keep your bags indoors until you receive our confirmation.</p>
             </div>
           </div>
         </div>
@@ -1755,14 +1755,26 @@
         // Add quantity from hidden input
         data.set('quantity', document.getElementById('quantityInput').value);
 
-        var toApp = fetch(APP_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', apikey: APP_KEY, Authorization: 'Bearer ' + APP_KEY },
-          body: JSON.stringify({ p_data: {
-            name: val('fname'), phone: val('phone'), email: val('email'), postcode: val('postcode'),
-            address: val('address'), bags: document.getElementById('quantityInput').value, notes: val('notes'),
-            website: document.getElementById('website').value, elapsed_ms: Date.now() - openedAt
-          } })
+        // Координаты по индексу (postcodes.io) — тогда приложение сразу предложит дату. Не дождались — не страшно.
+        var geo = Promise.race([
+          fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(val('postcode').replace(/\s+/g, '')))
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(j) { return j && j.result ? { lat: j.result.latitude, lng: j.result.longitude } : null; })
+            .catch(function() { return null; }),
+          new Promise(function(res) { setTimeout(function() { res(null); }, 4000); })
+        ]);
+
+        var toApp = geo.then(function(g) {
+          return fetch(APP_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', apikey: APP_KEY, Authorization: 'Bearer ' + APP_KEY },
+            body: JSON.stringify({ p_data: {
+              name: val('fname'), phone: val('phone'), email: val('email'), postcode: val('postcode'),
+              address: val('address'), bags: document.getElementById('quantityInput').value, notes: val('notes'),
+              website: document.getElementById('website').value, elapsed_ms: Date.now() - openedAt,
+              lat: g ? g.lat : null, lng: g ? g.lng : null
+            } })
+          });
         }).then(function(res) { return res.ok; }).catch(function() { return false; });
 
         var toMail = fetch('https://api.web3forms.com/submit', {
