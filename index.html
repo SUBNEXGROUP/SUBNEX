@@ -813,6 +813,20 @@
     }
     .form-group input.error { border-color: #E74C3C; }
     .form-group textarea { resize: vertical; min-height: 125px; }
+    .area-msg {
+      display: none;
+      font-size: .8rem;
+      line-height: 1.5;
+      color: #F5B942;
+      font-family: var(--head);
+      font-weight: 600;
+      background: rgba(245,185,66,.07);
+      border: 1px solid rgba(245,185,66,.35);
+      border-radius: 12px;
+      padding: .7rem .9rem;
+      margin: -.2rem 0 1.1rem;
+    }
+    .area-msg.show { display: block; }
     .error-msg {
       display: none;
       font-size: .75rem;
@@ -1381,9 +1395,10 @@
                 <div class="form-group">
                   <label for="postcode">Postcode *</label>
                   <input type="text" id="postcode" name="Postcode" placeholder="CF10 1AA"/>
-                  <div class="error-msg" id="postcodeErr">Please enter your postcode.</div>
+                  <div class="error-msg" id="postcodeErr">Please enter a valid UK postcode.</div>
                 </div>
               </div>
+              <div class="area-msg" id="postcodeArea" role="status">Sorry, we are not collecting in your area just yet — we plan to cover more of South Wales soon. You can still send your request and we will be in touch as soon as we reach you.</div>
               <div class="form-group">
                 <label for="address">Collection Address *</label>
                 <input type="text" id="address" name="Collection Address" placeholder="e.g. 14 High Street, Cardiff"/>
@@ -1704,13 +1719,17 @@
       er.classList.toggle('show',  show);
     }
 
+    // Формат индекса — как в приложении: иначе заявка дойдёт только копией на info@, без письма клиенту.
+    var PC_RE = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/;
+
     function validate() {
       var ok = true;
       function chk(id, errId, cond) { setError(id, errId, cond); if (cond) ok = false; }
       chk('fname',    'fnameErr',    document.getElementById('fname').value.trim().length < 2);
-      chk('phone',    'phoneErr',    !/^[\d\s+\-()\u200B]{7,}$/.test(document.getElementById('phone').value.trim()));
+      chk('phone',    'phoneErr',    !/^[\d\s+\-()\u200B]{7,}$/.test(document.getElementById('phone').value.trim())
+                                     || document.getElementById('phone').value.replace(/\D/g, '').length < 10);
       chk('email',    'emailErr',    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(document.getElementById('email').value.trim()));
-      chk('postcode', 'postcodeErr', document.getElementById('postcode').value.trim().length < 3);
+      chk('postcode', 'postcodeErr', !PC_RE.test(document.getElementById('postcode').value.trim().toUpperCase()));
       chk('address',  'addressErr',  document.getElementById('address').value.trim().length < 5);
       // quantity radio
       var qChecked = document.getElementById('quantityInput').value;
@@ -1744,6 +1763,24 @@
     var APP_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ';
     function val(id) { return document.getElementById(id).value.trim(); }
 
+    // Проверка индекса: обслуживаем ли район. Только подсказка — отправить заявку всё равно можно.
+    var areaTimer = null, areaSeq = 0;
+    function checkArea() {
+      var pc = val('postcode').toUpperCase(), note = document.getElementById('postcodeArea'), seq = ++areaSeq;
+      if (!PC_RE.test(pc)) { note.classList.remove('show'); return; }
+      fetch(APP_URL.replace('subnex_web_booking', 'subnex_area_check'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: APP_KEY, Authorization: 'Bearer ' + APP_KEY },
+        body: JSON.stringify({ p_postcode: pc })
+      }).then(function(r) { return r.ok ? r.json() : null; }).then(function(j) {
+        if (seq === areaSeq) note.classList.toggle('show', !!(j && j.valid && j.served === false));
+      }).catch(function() {});
+    }
+    document.getElementById('postcode').addEventListener('input', function() {
+      clearTimeout(areaTimer); areaTimer = setTimeout(checkArea, 700);
+    });
+    document.getElementById('postcode').addEventListener('blur', function() { clearTimeout(areaTimer); checkArea(); });
+
     form.addEventListener('submit', function(e) {
       e.preventDefault();
       if (validate()) {
@@ -1775,7 +1812,10 @@
               lat: g ? g.lat : null, lng: g ? g.lng : null
             } })
           });
-        }).then(function(res) { return res.ok; }).catch(function() { return false; });
+        }).then(function(res) {
+          if (!res.ok) return false;
+          return res.json().then(function(j) { return j || true; }, function() { return true; });
+        }).catch(function() { return false; });
 
         var toMail = fetch('https://api.web3forms.com/submit', {
           method: 'POST',
@@ -1785,6 +1825,10 @@
 
         Promise.all([toApp, toMail]).then(function(r) {
           if (r[0] || r[1]) {
+            if (r[0] && r[0].served === false) {
+              success.querySelector('h3').textContent = 'Thank you!';
+              success.querySelector('p').textContent = 'We are not collecting in your area just yet, but we are growing and plan to cover more of South Wales soon. We have kept your details and will be in touch as soon as we start collecting near you.';
+            }
             form.style.display = 'none';
             success.style.display = 'block';
             success.scrollIntoView({ behavior: 'smooth', block: 'center' });
