@@ -1,14 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NW09V1DXZT"></script>
+  <!-- Google tag (gtag.js) с Consent Mode: до выбора посетителя cookie не ставятся -->
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
+    gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied', wait_for_update: 500 });
+    try { if (localStorage.getItem('subnex_consent') === 'granted') gtag('consent', 'update', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' }); } catch (e) {}
     gtag('js', new Date());
     gtag('config', 'G-NW09V1DXZT');
   </script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NW09V1DXZT"></script>
+  <script src="/site.js?v=20261006"></script>
   <script>
     /* Make direct form links reliable on iPhone before responsive layout runs. */
     (function() {
@@ -827,6 +830,7 @@
       margin: -.2rem 0 1.1rem;
     }
     .area-msg.show { display: block; }
+    .area-msg.ok { color: #2ECC71; background: rgba(46,204,113,.08); border-color: rgba(46,204,113,.35); }
     .error-msg {
       display: none;
       font-size: .75rem;
@@ -1381,7 +1385,7 @@
                   <div class="error-msg" id="fnameErr">Please enter your full name.</div>
                 </div>
                 <div class="form-group">
-                  <label for="phone">Phone Number *</label>
+                  <label for="phone">Phone Number <span style="color:var(--faint);font-weight:400;">(optional)</span></label>
                   <input type="tel" id="phone" name="Phone Number" placeholder="07700 900000" autocomplete="tel"/>
                   <div class="error-msg" id="phoneErr">Please enter a valid phone number.</div>
                 </div>
@@ -1472,7 +1476,7 @@
       </div>
       <div class="footer-bottom">
         <p>© 2025 Subnex Group. All rights reserved. Coverage: South Wales, UK.</p>
-        <span class="f-reg">Registered in England &amp; Wales</span>
+        <span class="f-reg">SUBNEX GROUP LTD · Company number 16916876 · Registered in England &amp; Wales · <a href="/privacy/" style="color:inherit">How we use your details</a></span>
       </div>
     </div>
   </footer>
@@ -1726,8 +1730,8 @@
       var ok = true;
       function chk(id, errId, cond) { setError(id, errId, cond); if (cond) ok = false; }
       chk('fname',    'fnameErr',    document.getElementById('fname').value.trim().length < 2);
-      chk('phone',    'phoneErr',    !/^[\d\s+\-()\u200B]{7,}$/.test(document.getElementById('phone').value.trim())
-                                     || document.getElementById('phone').value.replace(/\D/g, '').length < 10);
+      var ph = document.getElementById('phone').value.trim();
+      chk('phone',    'phoneErr',    ph !== '' && (!/^[\d\s+\-()\u200B]{7,}$/.test(ph) || ph.replace(/\D/g, '').length < 10));
       chk('email',    'emailErr',    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(document.getElementById('email').value.trim()));
       chk('postcode', 'postcodeErr', !PC_RE.test(document.getElementById('postcode').value.trim().toUpperCase()));
       chk('address',  'addressErr',  document.getElementById('address').value.trim().length < 5);
@@ -1773,7 +1777,12 @@
         headers: { 'Content-Type': 'application/json', apikey: APP_KEY, Authorization: 'Bearer ' + APP_KEY },
         body: JSON.stringify({ p_postcode: pc })
       }).then(function(r) { return r.ok ? r.json() : null; }).then(function(j) {
-        if (seq === areaSeq) note.classList.toggle('show', !!(j && j.valid && j.served === false));
+        if (seq !== areaSeq) return;
+        var t = window.SubnexSite ? SubnexSite.areaText(j) : null;
+        if (!t) { note.classList.remove('show'); return; }
+        note.textContent = (t.ok ? '✓ ' : '') + t.text;
+        note.classList.toggle('ok', t.ok);
+        note.classList.add('show');
       }).catch(function() {});
     }
     document.getElementById('postcode').addEventListener('input', function() {
@@ -1809,7 +1818,8 @@
               name: val('fname'), phone: val('phone'), email: val('email'), postcode: val('postcode'),
               address: val('address'), bags: document.getElementById('quantityInput').value, notes: val('notes'),
               website: document.getElementById('website').value, elapsed_ms: Date.now() - openedAt,
-              lat: g ? g.lat : null, lng: g ? g.lng : null
+              lat: g ? g.lat : null, lng: g ? g.lng : null,
+              ad: window.SubnexSite ? SubnexSite.ad() : null
             } })
           });
         }).then(function(res) {
@@ -1825,6 +1835,7 @@
 
         Promise.all([toApp, toMail]).then(function(r) {
           if (r[0] || r[1]) {
+            if (window.SubnexSite && !(r[0] && r[0].served === false)) SubnexSite.lead(val('email'), val('phone'));
             if (r[0] && r[0].served === false) {
               success.querySelector('h3').textContent = 'Thank you!';
               success.querySelector('p').textContent = 'We are not collecting in your area just yet, but we are growing and plan to cover more of South Wales soon. We have kept your details and will be in touch as soon as we start collecting near you.';

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Free Clothes Collection from Your Doorstep | SUBNEX</title>
+  <meta name="description" content="Free doorstep clothes collection across Cardiff, the Valleys, Caerphilly and Newport. Book online in 2 minutes and get a collection date for your area."/>
+  <meta name="robots" content="noindex, follow"/>
+  <link rel="canonical" href="https://subnex.co.uk/collect/"/>
+  <meta name="theme-color" content="#0D0D1A"/>
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon.png"/>
+  <link rel="apple-touch-icon" href="/favicon.png"/>
+
+  <!-- Google tag с Consent Mode: до выбора посетителя cookie не ставятся -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied', wait_for_update: 500 });
+    try { if (localStorage.getItem('subnex_consent') === 'granted') gtag('consent', 'update', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' }); } catch (e) {}
+    gtag('js', new Date());
+    gtag('config', 'G-NW09V1DXZT');
+  </script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NW09V1DXZT"></script>
+  <script src="/site.js?v=20261006"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root {
+      --bg: #0D0D1A; --bg-2: #12121F; --surface: #1C1C30; --surface-2: #22223A;
+      --border: rgba(255,255,255,.08); --border-2: rgba(255,255,255,.14);
+      --green: #2ECC71; --green-pale: rgba(46,204,113,.09); --amber: #F5B942; --red: #E74C3C;
+      --white: #FFFFFF; --text: #E8E8F0; --muted: #9A9AB8; --faint: #55557A;
+      --head: 'Poppins', Arial, sans-serif; --body: 'Inter', Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.6 var(--body); }
+    a { color: var(--green); }
+    img { max-width: 100%; display: block; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+
+    /* Шапка */
+    .top { padding: 16px 0; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--white); text-decoration: none; }
+    .brand img { width: 36px; height: 36px; border-radius: 50%; }
+    .brand b { display: block; font: 800 17px/1 var(--head); letter-spacing: -.2px; }
+    .brand small { display: block; font: 700 9px/1.4 var(--head); letter-spacing: 3px; color: var(--green); }
+
+    /* Первый экран */
+    .hero { padding: 8px 0 40px; position: relative; overflow: hidden; }
+    .hero::before { content: ''; position: absolute; width: 520px; height: 520px; right: -160px; top: -200px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(46,204,113,.16), transparent 65%); pointer-events: none; }
+    .hero-grid { display: grid; grid-template-columns: 1fr; gap: 22px; align-items: start; position: relative; }
+    .eyebrow { display: inline-block; font: 700 11px/1 var(--head); letter-spacing: 2.5px; text-transform: uppercase; color: var(--green);
+      background: var(--green-pale); border: 1px solid rgba(46,204,113,.3); border-radius: 100px; padding: 8px 12px; }
+    h1 { font: 800 clamp(29px, 7vw, 50px)/1.08 var(--head); letter-spacing: -1px; color: var(--white); margin: 14px 0 10px; }
+    h1 em { font-style: normal; color: var(--green); }
+    .lead { font-size: 16px; color: var(--muted); margin: 0; max-width: 34em; }
+    .ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .ticks li { display: flex; gap: 10px; align-items: flex-start; font-weight: 500; color: var(--text); }
+    .ticks li::before { content: '✓'; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--green); color: #0A1A0D;
+      font: 800 12px/22px var(--head); text-align: center; margin-top: 2px; }
+
+    /* Форма */
+    .card { background: var(--surface); border: 1px solid var(--border-2); border-radius: 22px; padding: 22px 18px; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
+    .card h2 { font: 700 21px/1.25 var(--head); color: var(--white); margin: 0 0 4px; }
+    .card .sub { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+    .f { margin-bottom: 14px; }
+    .f label { display: block; font: 600 13px/1.3 var(--head); color: var(--text); margin-bottom: 6px; }
+    .f label span { color: var(--faint); font-weight: 500; }
+    .f input, .f textarea { width: 100%; background: var(--bg-2); border: 1px solid var(--border-2); border-radius: 12px; color: var(--white);
+      font: 400 16px/1.4 var(--body); padding: 13px 14px; outline: none; transition: border-color .2s; }
+    .f input:focus, .f textarea:focus { border-color: var(--green); }
+    .f input.bad { border-color: var(--red); }
+    .f textarea { min-height: 76px; resize: vertical; }
+    .err { display: none; color: var(--red); font: 600 12px/1.4 var(--head); margin-top: 5px; }
+    .err.show { display: block; }
+    .row2 { display: grid; grid-template-columns: 1fr; gap: 0 12px; }
+    .area { display: none; font: 600 13px/1.5 var(--head); border-radius: 12px; padding: 10px 12px; margin: -4px 0 14px;
+      color: var(--amber); background: rgba(245,185,66,.08); border: 1px solid rgba(245,185,66,.35); }
+    .area.ok { color: var(--green); background: var(--green-pale); border-color: rgba(46,204,113,.35); }
+    .area.show { display: block; }
+    .bags { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .bags button { background: var(--bg-2); border: 1px solid var(--border-2); color: var(--text); border-radius: 12px; padding: 12px 4px;
+      font: 600 14px/1.2 var(--head); cursor: pointer; }
+    .bags button.on { border-color: var(--green); background: var(--green-pale); color: var(--green); }
+    .go { width: 100%; border: 0; border-radius: 100px; background: var(--green); color: #0A1A0D; font: 800 17px/1 var(--head);
+      padding: 17px 20px; cursor: pointer; box-shadow: 0 6px 24px rgba(46,204,113,.35); margin-top: 4px; }
+    .go:disabled { opacity: .6; cursor: default; }
+    .small { color: var(--muted); font-size: 12.5px; text-align: center; margin: 12px 0 0; }
+    .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+    .done { display: none; text-align: center; padding: 18px 4px; }
+    .done .ic { width: 58px; height: 58px; border-radius: 50%; background: var(--green); color: #0A1A0D; font: 800 28px/58px var(--head); margin: 0 auto 14px; }
+    .done h2 { margin-bottom: 8px; }
+    .done p { color: var(--muted); margin: 0 0 8px; }
+
+    /* Разделы */
+    section.s { padding: 44px 0; border-top: 1px solid var(--border); }
+    .s h2.t { font: 800 clamp(24px, 5vw, 34px)/1.15 var(--head); letter-spacing: -.5px; color: var(--white); margin: 0 0 8px; }
+    .s .st { color: var(--muted); margin: 0 0 24px; max-width: 40em; }
+    .steps { display: grid; grid-template-columns: 1fr; gap: 14px; counter-reset: st; }
+    .step { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; }
+    .step::before { counter-increment: st; content: counter(st); display: inline-block; width: 34px; height: 34px; border-radius: 50%;
+      border: 1px solid var(--green); color: var(--green); font: 800 15px/32px var(--head); text-align: center; margin-bottom: 10px; }
+    .step h3 { font: 700 17px/1.3 var(--head); color: var(--white); margin: 0 0 6px; }
+    .step p { margin: 0; color: var(--muted); font-size: 15px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    .chips span { background: var(--surface); border: 1px solid var(--border-2); border-radius: 100px; padding: 9px 14px; font: 600 14px/1 var(--head); color: var(--text); }
+    .note { background: var(--green-pale); border-left: 3px solid var(--green); border-radius: 10px; padding: 13px 15px; color: #CFEFDC; font-size: 15px; }
+    .areas { columns: 2; column-gap: 24px; padding: 0; margin: 0 0 16px; list-style: none; }
+    .areas li { padding: 5px 0; font-weight: 500; break-inside: avoid; }
+    .areas li::before { content: '•'; color: var(--green); margin-right: 8px; }
+    details { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0 16px; margin-bottom: 10px; }
+    summary { cursor: pointer; list-style: none; padding: 15px 0; font: 700 16px/1.35 var(--head); color: var(--white); display: flex; justify-content: space-between; gap: 12px; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: '+'; color: var(--green); font-size: 22px; line-height: 1; }
+    details[open] summary::after { content: '–'; }
+    details p { margin: 0 0 15px; color: var(--muted); }
+    .cta2 { text-align: center; }
+    .cta2 a { display: inline-block; background: var(--green); color: #0A1A0D; text-decoration: none; font: 800 17px/1 var(--head);
+      padding: 17px 30px; border-radius: 100px; box-shadow: 0 6px 24px rgba(46,204,113,.35); }
+    footer { border-top: 1px solid var(--border); padding: 26px 0 90px; color: var(--muted); font-size: 13px; }
+    footer a { color: var(--muted); }
+
+    /* Кнопка внизу экрана на телефоне, пока форма не видна */
+    .sticky { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 50; display: none; }
+    .sticky a { display: block; text-align: center; background: var(--green); color: #0A1A0D; text-decoration: none; font: 800 16px/1 var(--head);
+      padding: 16px; border-radius: 100px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+    .sticky.show { display: block; }
+    html.sx-cookie-open .sticky { display: none; }
+
+    @media (min-width: 720px) {
+      .row2 { grid-template-columns: 1fr 1fr; }
+      .steps { grid-template-columns: repeat(3, 1fr); }
+      .areas { columns: 3; }
+      .card { padding: 28px 26px; }
+    }
+    @media (min-width: 960px) {
+      .hero { padding: 24px 0 64px; }
+      .hero-grid { grid-template-columns: 1.05fr .95fr; grid-template-areas: "copy card" "ticks card"; gap: 0 48px; }
+      .hero-copy { grid-area: copy; padding-top: 28px; }
+      .hero-grid .card { grid-area: card; }
+      .hero-grid .ticks { grid-area: ticks; align-self: start; margin-top: 24px; }
+      .lead { font-size: 17px; }
+      .sticky { display: none !important; }
+      footer { padding-bottom: 30px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <span class="brand"><img src="/favicon.png" alt="" width="36" height="36"/><span><b>SUBNEX</b><small>GROUP</small></span></span>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <span class="eyebrow">Free doorstep collection</span>
+          <h1>Free clothes collection <em>from your doorstep</em></h1>
+          <p class="lead">Cardiff, the Valleys, Caerphilly and Newport. Book online in 2 minutes and we will email you a collection date for your area.</p>
+        </div>
+
+        <div class="card" id="book">
+          <form id="f" novalidate>
+            <h2>Book your free collection</h2>
+            <p class="sub">Takes under 2 minutes. No phone calls needed.</p>
+            <div class="hp" aria-hidden="true"><label for="website">Leave this field empty</label><input type="text" id="website" tabindex="-1" autocomplete="off"/></div>
+
+            <div class="f">
+              <label for="postcode">Postcode</label>
+              <input type="text" id="postcode" autocomplete="postal-code" autocapitalize="characters" placeholder="CF14 4PZ" maxlength="9"/>
+              <div class="err" id="postcodeErr">Please enter a valid UK postcode.</div>
+            </div>
+            <div class="area" id="area" role="status" aria-live="polite"></div>
+            <div class="f">
+              <label for="address">House number and street</label>
+              <input type="text" id="address" autocomplete="street-address" placeholder="14 High Street, Cardiff"/>
+              <div class="err" id="addressErr">Please enter your collection address.</div>
+            </div>
+            <div class="row2">
+              <div class="f">
+                <label for="name">Your name</label>
+                <input type="text" id="name" autocomplete="name" placeholder="Jane Smith"/>
+                <div class="err" id="nameErr">Please enter your name.</div>
+              </div>
+              <div class="f">
+                <label for="email">Email <span>(we send your date here)</span></label>
+                <input type="email" id="email" autocomplete="email" inputmode="email" placeholder="jane@example.com"/>
+                <div class="err" id="emailErr">Please enter a valid email address.</div>
+              </div>
+            </div>
+            <div class="f">
+              <label for="phone">Phone <span>(optional)</span></label>
+              <input type="tel" id="phone" autocomplete="tel" inputmode="tel" placeholder="07700 900000"/>
+              <div class="err" id="phoneErr">Please check your phone number, or leave it empty.</div>
+            </div>
+            <div class="f">
+              <label id="bagsLabel">How many bags?</label>
+              <div class="bags" role="group" aria-labelledby="bagsLabel">
+                <button type="button" data-v="1-5">1 – 5</button>
+                <button type="button" data-v="5-10">5 – 10</button>
+                <button type="button" data-v="10+">10+</button>
+              </div>
+              <div class="err" id="bagsErr">Please choose roughly how many bags.</div>
+            </div>
+            <div class="f">
+              <label for="notes">Anything we should know? <span>(optional)</span></label>
+              <textarea id="notes" placeholder="e.g. bags will be by the side gate"></textarea>
+            </div>
+            <button type="submit" class="go" id="go">Book my free collection →</button>
+            <p class="small">No charge. No commitment. We only use your details to arrange your collection. <a href="/privacy/">Privacy</a></p>
+          </form>
+          <div class="done" id="done" role="status" aria-live="polite">
+            <div class="ic">✓</div>
+            <h2 id="doneTitle">You are all set!</h2>
+            <p id="doneText"></p>
+            <p>Please keep your bags indoors until your date is confirmed.</p>
+          </div>
+        </div>
+
+        <ul class="ticks">
+          <li>100% free, no fees and no catches</li>
+          <li>No need to be in: leave your bags on the doorstep</li>
+          <li>A 2-hour arrival window on the day and a reminder the evening before</li>
+          <li>Date not convenient? Choose another day from the email</li>
+        </ul>
+      </div>
+    </div>
+
+    <section class="s" id="how">
+      <div class="wrap">
+        <h2 class="t">How it works</h2>
+        <p class="st">Three simple steps. You do not need to sort anything or be at home.</p>
+        <div class="steps">
+          <div class="step"><h3>Book online</h3><p>Tell us your address and roughly how many bags. It takes under 2 minutes.</p></div>
+          <div class="step"><h3>Get your date by email</h3><p>We email you a collection date for your area. Confirm it, or choose another day that suits you better.</p></div>
+          <div class="step"><h3>Leave your bags out</h3><p>We remind you the evening before and email a 2-hour arrival window on the morning of your collection. Leave your bags on the doorstep and we do the rest.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="s" id="take">
+      <div class="wrap">
+        <h2 class="t">What we take</h2>
+        <p class="st">From last season's jackets to the kids' outgrown shoes.</p>
+        <div class="chips">
+          <span>All clothing</span><span>Shoes</span><span>Bags &amp; accessories</span>
+          <span>Baby clothes</span><span>Jackets &amp; coats</span><span>Bric-a-brac</span>
+        </div>
+        <p class="note">Clean, dry and bagged is all we ask. Please check pockets and bags for valuables before you leave them out.</p>
+      </div>
+    </section>
+
+    <section class="s" id="where">
+      <div class="wrap">
+        <h2 class="t">Where we collect</h2>
+        <p class="st">Enter your postcode in the form to see the days we collect in your area.</p>
+        <ul class="areas">
+          <li>Cardiff</li><li>Penarth &amp; Barry</li><li>Pontypridd</li><li>Rhondda</li><li>Caerphilly</li>
+          <li>Merthyr Tydfil</li><li>Bridgend</li><li>Llantrisant</li><li>Newport</li><li>Blackwood</li>
+        </ul>
+        <p class="note">Everything we collect is sorted at our warehouse in the Rhondda and reused or recycled, so it stays out of landfill.</p>
+      </div>
+    </section>
+
+    <section class="s" id="faq">
+      <div class="wrap">
+        <h2 class="t">Questions</h2>
+        <details><summary>Is it really free?</summary><p>Yes. There is no charge for the collection and no catch.</p></details>
+        <details><summary>Do I need to be at home?</summary><p>No. On your collection day, leave your bags on the doorstep or somewhere we can see them from the street.</p></details>
+        <details><summary>What if the date does not suit me?</summary><p>The email with your date has a button to choose another day. You can also reply to any of our emails.</p></details>
+        <details><summary>How will I know when you are coming?</summary><p>We send a reminder the evening before, and on the morning of your collection we email you a 2-hour arrival window.</p></details>
+        <details><summary>Is there anything you cannot take?</summary><p>Please do not leave out anything wet, mouldy or soiled. If you are unsure about an item, add a note to your booking.</p></details>
+        <details><summary>Who are you?</summary><p>SUBNEX is a local South Wales business collecting unwanted clothes, shoes and bags across Cardiff, the Valleys, Caerphilly and Newport.</p></details>
+        <div class="cta2" style="margin-top:26px"><a href="#book">Book my free collection</a></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      © 2026 SUBNEX GROUP LTD · Company number 16916876 · Registered in England &amp; Wales ·
+      <a href="mailto:collections@subnex.co.uk">collections@subnex.co.uk</a> · <a href="/privacy/">Privacy</a> · <a href="/">subnex.co.uk</a>
+    </div>
+  </footer>
+
+  <div class="sticky" id="sticky"><a href="#book">Book my free collection</a></div>
+
+  <script>
+  (function () {
+    var API = 'https://hgnihlkiccfbrejbpojp.supabase.co/rest/v1/rpc/';
+    var KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ';
+    var COPY_KEY = '15760e61-18a7-4c6f-ab5a-6c344a1a69ea'; // копия заявки письмом на info@ (Web3Forms), как на главной
+    var PC_RE = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/;
+    var openedAt = Date.now(), bags = '', areaSeq = 0, areaTimer = null;
+    function $(id) { return document.getElementById(id); }
+    function v(id) { return $(id).value.trim(); }
+    function rpc(name, body) {
+      return fetch(API + name, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: 'Bearer ' + KEY }, body: JSON.stringify(body) });
+    }
+    function pc() { var p = v('postcode').toUpperCase().replace(/\s+/g, ''); return p.length > 4 ? p.slice(0, -3) + ' ' + p.slice(-3) : p; }
+    function bad(id, on) { var el = $(id); if (el.tagName === 'INPUT') el.classList.toggle('bad', on); $(id + 'Err').classList.toggle('show', on); return on; }
+
+    // Индекс → дни сбора в районе
+    function checkArea() {
+      var p = pc(), box = $('area'), seq = ++areaSeq;
+      if (!PC_RE.test(p)) { box.classList.remove('show'); return; }
+      rpc('subnex_area_check', { p_postcode: p }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        if (seq !== areaSeq) return;
+        var t = window.SubnexSite ? SubnexSite.areaText(j) : null;
+        if (!t) { box.classList.remove('show'); return; }
+        box.textContent = (t.ok ? '✓ ' : '') + t.text;
+        box.classList.toggle('ok', t.ok);
+        box.classList.add('show');
+      }).catch(function () {});
+    }
+    $('postcode').addEventListener('input', function () { bad('postcode', false); clearTimeout(areaTimer); areaTimer = setTimeout(checkArea, 600); });
+    $('postcode').addEventListener('blur', function () { if (PC_RE.test(pc())) $('postcode').value = pc(); clearTimeout(areaTimer); checkArea(); });
+    ['address', 'name', 'email', 'phone'].forEach(function (id) { $(id).addEventListener('input', function () { bad(id, false); }); });
+    document.querySelectorAll('.bags button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        document.querySelectorAll('.bags button').forEach(function (x) { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
+        b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); bags = b.getAttribute('data-v'); $('bagsErr').classList.remove('show');
+      });
+    });
+
+    function validate() {
+      var ph = v('phone'), first = null, checks = [
+        ['postcode', !PC_RE.test(pc())],
+        ['address', v('address').length < 5],
+        ['name', v('name').length < 2],
+        ['email', !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('email'))],
+        ['phone', ph !== '' && ph.replace(/\D/g, '').length < 10]
+      ];
+      checks.forEach(function (c) { if (bad(c[0], c[1]) && !first) first = $(c[0]); });
+      if (!bags) { $('bagsErr').classList.add('show'); if (!first) first = document.querySelector('.bags button'); }
+      if (first) first.focus();
+      return !first;
+    }
+
+    $('f').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!validate()) return;
+      var go = $('go'); go.disabled = true; go.textContent = 'Sending…';
+      var d = { name: v('name'), phone: v('phone'), email: v('email'), postcode: pc(), address: v('address'), bags: bags, notes: v('notes'),
+                website: $('website').value, elapsed_ms: Date.now() - openedAt, ad: window.SubnexSite ? SubnexSite.ad() : null };
+
+      // Координаты по индексу — тогда приложение сразу предложит дату. Не дождались за 4 секунды — не страшно.
+      var geo = Promise.race([
+        fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(d.postcode.replace(/\s+/g, '')))
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) { return j && j.result ? { lat: j.result.latitude, lng: j.result.longitude } : null; })
+          .catch(function () { return null; }),
+        new Promise(function (res) { setTimeout(function () { res(null); }, 4000); })
+      ]);
+      var toApp = geo.then(function (g) {
+        d.lat = g ? g.lat : null; d.lng = g ? g.lng : null;
+        return rpc('subnex_web_booking', { p_data: d });
+      }).then(function (r) { return r.ok ? r.json().then(function (j) { return j || {}; }, function () { return {}; }) : null; })
+        .catch(function () { return null; });
+      var copy = new FormData();
+      copy.append('access_key', COPY_KEY);
+      copy.append('subject', 'New Collection Booking — Subnex Group (ad page)');
+      copy.append('from_name', 'Subnex Website');
+      copy.append('botcheck', d.website);
+      copy.append('Full Name', d.name); copy.append('Phone Number', d.phone); copy.append('Email Address', d.email);
+      copy.append('Postcode', d.postcode); copy.append('Collection Address', d.address); copy.append('Quantity of Bags', d.bags);
+      copy.append('Message / Notes', d.notes);
+      var toMail = fetch('https://api.web3forms.com/submit', { method: 'POST', body: copy, headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok; }).catch(function () { return false; });
+
+      Promise.all([toApp, toMail]).then(function (r) {
+        if (!r[0] && !r[1]) {
+          go.disabled = false; go.textContent = 'Try again →';
+          alert('Sorry, something went wrong. Please try again, or email us at collections@subnex.co.uk');
+          return;
+        }
+        var first = d.name.split(' ')[0];
+        if (r[0] && r[0].served === false) {
+          $('doneTitle').textContent = 'Thank you, ' + first + '!';
+          $('doneText').textContent = 'We are not collecting in your area just yet, but we are growing. We have kept your details and will be in touch as soon as we start collecting near you.';
+        } else {
+          $('doneTitle').textContent = 'Thank you, ' + first + '!';
+          $('doneText').textContent = 'Your request is in. Check your inbox: we are emailing your collection date to ' + d.email + ', often within minutes. If you cannot see it, please check your spam folder.';
+          if (window.SubnexSite) SubnexSite.lead(d.email, d.phone);
+        }
+        $('f').style.display = 'none';
+        $('done').style.display = 'block';
+        $('book').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    // Кнопка «Book» внизу экрана на телефоне — только когда форма не на экране.
+    if ('IntersectionObserver' in window) {
+      var sticky = $('sticky'), past = false, formSeen = true;
+      new IntersectionObserver(function (es) { formSeen = es[0].isIntersecting; upd(); }, { threshold: 0.15 }).observe($('book'));
+      window.addEventListener('scroll', function () { past = window.scrollY > 300; upd(); }, { passive: true });
+      function upd() { sticky.classList.toggle('show', past && !formSeen && $('done').style.display !== 'block'); }
+    }
+  })();
+  </script>
+</body>
+</html>
