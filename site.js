@@ -1,9 +1,9 @@
 /* SUBNEX — общий код страниц сайта: согласие на cookie (Consent Mode v2), метки рекламы, конверсия заявки,
    текст «в какие дни мы собираем в вашем районе». Подключается после встроенного блока gtag в <head>.
-   Google Ads: когда будет аккаунт, вписать ADS_ID ('AW-…') и ADS_LABEL (метка конверсии «Book a collection»). */
+   Google Ads: аккаунт 270-513-0393, конверсия «Book a collection» (ADS_ID / ADS_LABEL ниже). */
 (function () {
-  var ADS_ID = '';
-  var ADS_LABEL = '';
+  var ADS_ID = 'AW-18364438238';
+  var ADS_LABEL = 'pSLACN_C3JQdEN6t7LRE';
   var KEY = 'subnex_consent';
   var GRANTED = { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' };
 
