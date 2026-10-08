@@ -143,9 +143,11 @@
     }
     @media (min-width: 960px) {
       .hero { padding: 24px 0 64px; }
-      .hero-grid { grid-template-columns: 1.05fr .95fr; grid-template-areas: "copy card" "ticks card" "photo card"; gap: 0 48px; }
-      .hero-photo { grid-area: photo; margin-top: 28px; border-radius: 20px; }
-      .hero-copy { grid-area: copy; padding-top: 28px; }
+      .hero::before { display: none; }
+      .hero-grid { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto 1fr; grid-template-areas: "copy card" "ticks card" "photo card";
+        gap: 0 48px; align-items: stretch; }
+      .hero-photo { grid-area: photo; margin-top: 28px; border-radius: 22px; aspect-ratio: auto; min-height: 220px; align-self: stretch; }
+      .hero-copy { grid-area: copy; padding-top: 0; }
       .hero-grid .card { grid-area: card; }
       .hero-grid .ticks { grid-area: ticks; align-self: start; margin-top: 24px; }
       .lead { font-size: 17px; }
