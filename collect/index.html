@@ -54,9 +54,15 @@
     .hero::before { content: ''; position: absolute; width: 520px; height: 520px; right: -160px; top: -200px; border-radius: 50%;
       background: radial-gradient(circle, rgba(46,204,113,.16), transparent 65%); pointer-events: none; }
     .hero-grid { display: grid; grid-template-columns: 1fr; gap: 22px; align-items: start; position: relative; }
-    .hero-photo { order: 9; margin: 6px 0 0; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 18px;
-      border: 1px solid var(--border-2); box-shadow: 0 10px 40px rgba(0,0,0,.45); }
-    .hero-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 70% 60%; display: block; }
+    /* Mobile: photo sits behind the headline as a backdrop; the form stays where it was. */
+    .hero-grid > :not(.hero-photo) { position: relative; z-index: 1; }
+    .hero-photo { position: absolute; left: -20px; right: -20px; top: -8px; height: 330px; margin: 0; overflow: hidden; pointer-events: none; }
+    .hero-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 72% 62%; display: block; }
+    .hero-photo::after { content: ''; position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(13,13,26,.30) 0%, rgba(13,13,26,.55) 45%, rgba(13,13,26,.92) 80%, var(--bg) 100%); }
+    .hero-copy h1, .hero-copy .lead { text-shadow: 0 2px 14px rgba(0,0,0,.65); }
+    .hero-copy .lead { color: #D9DBEA; }
+    .hero-copy .eyebrow { background: rgba(13,13,26,.72); backdrop-filter: blur(4px); }
     .eyebrow { display: inline-block; font: 700 11px/1 var(--head); letter-spacing: 2.5px; text-transform: uppercase; color: var(--green);
       background: var(--green-pale); border: 1px solid rgba(46,204,113,.3); border-radius: 100px; padding: 8px 12px; }
     h1 { font: 800 clamp(29px, 7vw, 50px)/1.08 var(--head); letter-spacing: -1px; color: var(--white); margin: 14px 0 10px; }
@@ -146,7 +152,11 @@
       .hero::before { display: none; }
       .hero-grid { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto 1fr; grid-template-areas: "copy card" "ticks card" "photo card";
         gap: 0 48px; align-items: stretch; }
-      .hero-photo { grid-area: photo; margin-top: 28px; border-radius: 22px; aspect-ratio: auto; min-height: 220px; align-self: stretch; }
+      .hero-photo { position: relative; left: auto; right: auto; top: auto; height: auto; grid-area: photo; margin-top: 28px; border-radius: 22px;
+        min-height: 220px; align-self: stretch; border: 1px solid var(--border-2); box-shadow: 0 10px 40px rgba(0,0,0,.45); pointer-events: auto; }
+      .hero-photo::after { display: none; }
+      .hero-copy h1, .hero-copy .lead { text-shadow: none; }
+      .hero-copy .lead { color: var(--muted); }
       .hero-copy { grid-area: copy; padding-top: 0; }
       .hero-grid .card { grid-area: card; }
       .hero-grid .ticks { grid-area: ticks; align-self: start; margin-top: 24px; }
@@ -168,7 +178,7 @@
       <div class="wrap hero-grid">
         <figure class="hero-photo">
           <img src="/collect/img/doorstep-1600.webp" srcset="/collect/img/doorstep-800.webp 800w, /collect/img/doorstep-1600.webp 1600w"
-               sizes="(min-width: 960px) 560px, 100vw" width="1600" height="900" loading="lazy" decoding="async"
+               sizes="(min-width: 960px) 560px, 100vw" width="1600" height="900" decoding="async" fetchpriority="high"
                alt="Bags of clothes left on a doorstep for collection on a South Wales street"/>
         </figure>
         <div class="hero-copy">
