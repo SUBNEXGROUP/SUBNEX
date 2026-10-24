@@ -96,6 +96,13 @@
     .bags button { background: var(--bg-2); border: 1px solid var(--border-2); color: var(--text); border-radius: 12px; padding: 12px 4px;
       font: 600 14px/1.2 var(--head); cursor: pointer; }
     .bags button.on { border-color: var(--green); background: var(--green-pale); color: var(--green); }
+    .days { display: none; }
+    .days.show { display: block; }
+    .dayopts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .dayopts button { background: var(--bg-2); border: 1px solid var(--border-2); color: var(--text); border-radius: 12px; padding: 12px 6px;
+      font: 600 14px/1.25 var(--head); cursor: pointer; }
+    .dayopts button.on { border-color: var(--green); background: var(--green-pale); color: var(--green); }
+    .days .hint { color: var(--faint); font-size: 12.5px; margin: 8px 0 0; }
     .go { width: 100%; border: 0; border-radius: 100px; background: var(--green); color: #0A1A0D; font: 800 17px/1 var(--head);
       padding: 17px 20px; cursor: pointer; box-shadow: 0 6px 24px rgba(46,204,113,.35); margin-top: 4px; }
     .go:disabled { opacity: .6; cursor: default; }
@@ -184,7 +191,7 @@
         <div class="hero-copy">
           <span class="eyebrow">Free doorstep collection</span>
           <h1>Free clothes collection <em>from your doorstep</em></h1>
-          <p class="lead">Cardiff, the Valleys, Caerphilly and Newport. Book online in 2 minutes and we will email you a collection date for your area.</p>
+          <p class="lead">Cardiff, the Valleys, Caerphilly and Newport. Book online in 2 minutes and choose your collection day.</p>
         </div>
 
         <div class="card" id="book">
@@ -199,6 +206,11 @@
               <div class="err" id="postcodeErr">Please enter a valid UK postcode.</div>
             </div>
             <div class="area" id="area" role="status" aria-live="polite"></div>
+            <div class="f days" id="days">
+              <label id="daysLabel">Choose your collection day <span>(optional)</span></label>
+              <div class="dayopts" role="group" aria-labelledby="daysLabel" id="dayOpts"></div>
+              <p class="hint">None of these suit you? Leave it and we will email you a date.</p>
+            </div>
             <div class="f">
               <label for="address">House number and street</label>
               <input type="text" id="address" autocomplete="street-address" placeholder="14 High Street, Cardiff"/>
@@ -241,7 +253,7 @@
             <div class="ic">✓</div>
             <h2 id="doneTitle">You are all set!</h2>
             <p id="doneText"></p>
-            <p>Please keep your bags indoors until your date is confirmed.</p>
+            <p id="doneKeep">Please keep your bags indoors until your date is confirmed.</p>
           </div>
         </div>
 
@@ -319,7 +331,7 @@
     var KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ';
     var COPY_KEY = '15760e61-18a7-4c6f-ab5a-6c344a1a69ea'; // копия заявки письмом на info@ (Web3Forms), как на главной
     var PC_RE = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/;
-    var openedAt = Date.now(), bags = '', areaSeq = 0, areaTimer = null;
+    var openedAt = Date.now(), bags = '', areaSeq = 0, areaTimer = null, pick = '', geoCache = {};
     function $(id) { return document.getElementById(id); }
     function v(id) { return $(id).value.trim(); }
     function rpc(name, body) {
@@ -328,9 +340,47 @@
     function pc() { var p = v('postcode').toUpperCase().replace(/\s+/g, ''); return p.length > 4 ? p.slice(0, -3) + ' ' + p.slice(-3) : p; }
     function bad(id, on) { var el = $(id); if (el.tagName === 'INPUT') el.classList.toggle('bad', on); $(id + 'Err').classList.toggle('show', on); return on; }
 
+    // Координаты индекса (postcodes.io); результат запоминаем, чтобы не спрашивать дважды.
+    function geo(p) {
+      var k = p.replace(/\s+/g, '');
+      if (!geoCache[k]) geoCache[k] = Promise.race([
+        fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(k))
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) { return j && j.result ? { lat: j.result.latitude, lng: j.result.longitude } : null; })
+          .catch(function () { return null; }),
+        new Promise(function (res) { setTimeout(function () { res(null); }, 4000); })
+      ]).then(function (g) { if (!g) delete geoCache[k]; return g; });
+      return geoCache[k];
+    }
+    // Дни, которые можно выбрать прямо в форме (тот же планировщик, что и письмо с датой).
+    function clearDays() { pick = ''; $('dayOpts').innerHTML = ''; $('days').classList.remove('show'); }
+    function loadDays(p, seq) {
+      geo(p).then(function (g) {
+        if (!g || seq !== areaSeq) return null;
+        return rpc('subnex_booking_days', { p_postcode: p, p_lat: g.lat, p_lng: g.lng }).then(function (r) { return r.ok ? r.json() : null; });
+      }).then(function (j) {
+        if (seq !== areaSeq || !j || !j.ok || !j.days || !j.days.length) return;
+        var box = $('dayOpts'); box.innerHTML = '';
+        j.days.forEach(function (x) {
+          var b = document.createElement('button');
+          b.type = 'button'; b.textContent = x.label; b.setAttribute('data-day', x.day); b.setAttribute('aria-pressed', 'false');
+          b.addEventListener('click', function () {
+            var on = !b.classList.contains('on');
+            box.querySelectorAll('button').forEach(function (y) { y.classList.remove('on'); y.setAttribute('aria-pressed', 'false'); });
+            if (on) { b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); }
+            pick = on ? x.day : '';
+          });
+          box.appendChild(b);
+        });
+        $('days').classList.add('show');
+        var note = $('area'); note.textContent = note.textContent.replace(' We will email you the exact date.', '');
+      }).catch(function () {});
+    }
+
     // Индекс → дни сбора в районе
     function checkArea() {
       var p = pc(), box = $('area'), seq = ++areaSeq;
+      clearDays();
       if (!PC_RE.test(p)) { box.classList.remove('show'); return; }
       rpc('subnex_area_check', { p_postcode: p }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
         if (seq !== areaSeq) return;
@@ -339,6 +389,7 @@
         box.textContent = (t.ok ? '✓ ' : '') + t.text;
         box.classList.toggle('ok', t.ok);
         box.classList.add('show');
+        if (t.ok) loadDays(p, seq);
       }).catch(function () {});
     }
     $('postcode').addEventListener('input', function () { bad('postcode', false); clearTimeout(areaTimer); areaTimer = setTimeout(checkArea, 600); });
@@ -371,16 +422,10 @@
       var go = $('go'); go.disabled = true; go.textContent = 'Sending…';
       var d = { name: v('name'), phone: v('phone'), email: v('email'), postcode: pc(), address: v('address'), bags: bags, notes: v('notes'),
                 website: $('website').value, elapsed_ms: Date.now() - openedAt, ad: window.SubnexSite ? SubnexSite.ad() : null };
+      if (pick) d.day = pick;
 
       // Координаты по индексу — тогда приложение сразу предложит дату. Не дождались за 4 секунды — не страшно.
-      var geo = Promise.race([
-        fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(d.postcode.replace(/\s+/g, '')))
-          .then(function (r) { return r.ok ? r.json() : null; })
-          .then(function (j) { return j && j.result ? { lat: j.result.latitude, lng: j.result.longitude } : null; })
-          .catch(function () { return null; }),
-        new Promise(function (res) { setTimeout(function () { res(null); }, 4000); })
-      ]);
-      var toApp = geo.then(function (g) {
+      var toApp = geo(d.postcode).then(function (g) {
         d.lat = g ? g.lat : null; d.lng = g ? g.lng : null;
         return rpc('subnex_web_booking', { p_data: d });
       }).then(function (r) { return r.ok ? r.json().then(function (j) { return j || {}; }, function () { return {}; }) : null; })
@@ -393,6 +438,7 @@
       copy.append('Full Name', d.name); copy.append('Phone Number', d.phone); copy.append('Email Address', d.email);
       copy.append('Postcode', d.postcode); copy.append('Collection Address', d.address); copy.append('Quantity of Bags', d.bags);
       copy.append('Message / Notes', d.notes);
+      if (d.day) copy.append('Chosen day', d.day);
       var toMail = fetch('https://api.web3forms.com/submit', { method: 'POST', body: copy, headers: { Accept: 'application/json' } })
         .then(function (r) { return r.ok; }).catch(function () { return false; });
 
@@ -406,6 +452,11 @@
         if (r[0] && r[0].served === false) {
           $('doneTitle').textContent = 'Thank you, ' + first + '!';
           $('doneText').textContent = 'We are not collecting in your area just yet, but we are growing. We have kept your details and will be in touch as soon as we start collecting near you.';
+        } else if (r[0] && r[0].booked) {
+          $('doneTitle').textContent = 'You are booked in, ' + first + '!';
+          $('doneText').textContent = 'Your free collection is booked for ' + r[0].day_label + '. We have emailed the confirmation to ' + d.email + '.';
+          $('doneKeep').textContent = 'On the morning of your collection we will email you a time window. Please leave your bags out that morning where we can see them from the street.';
+          if (window.SubnexSite) SubnexSite.lead(d.email, d.phone);
         } else {
           $('doneTitle').textContent = 'Thank you, ' + first + '!';
           $('doneText').textContent = 'Your request is in. Check your inbox: we are emailing your collection date to ' + d.email + ', often within minutes. If you cannot see it, please check your spam folder.';
