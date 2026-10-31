@@ -14,7 +14,7 @@
     gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied', wait_for_update: 500 });
     try { if (localStorage.getItem('subnex_consent') === 'granted') gtag('consent', 'update', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' }); } catch (e) {}
   </script>
-  <script src="/site.js?v=20261031"></script>
+  <script src="/site.js?v=20261031b"></script>
   <style>
     :root { --bg: #0D0D1A; --surface: #1C1C30; --border: rgba(255,255,255,.1); --green: #2ECC71; --white: #FFFFFF; --text: #E8E8F0; --muted: #9A9AB8; }
     * { box-sizing: border-box; }
@@ -36,7 +36,7 @@
   <div class="wrap">
     <a class="brand" href="/"><img src="/favicon.png" alt="" width="34" height="34"/>SUBNEX</a>
     <h1>How we use your details</h1>
-    <p class="upd">Last updated: 6 October 2026</p>
+    <p class="upd">Last updated: 31 October 2026</p>
 
     <h2>What we collect and why</h2>
     <p>When you book a collection, we ask for your name, email, collection address and postcode, roughly how many bags you have, any notes, and your phone number if you choose to give it. We use these details only to arrange and carry out your collection: to email you a date, a reminder, your arrival window and an update once we have been.</p>
@@ -51,8 +51,16 @@
     <h2>How long we keep them</h2>
     <p>Up to two years after your last collection. After that we delete them.</p>
 
-    <h2>Cookies</h2>
-    <p>We use Google Analytics, Google Ads and OpenAI (ChatGPT adverts) cookies only if you click Accept, to see how people find us and which adverts work. If you accept and then book, we also send Google and OpenAI a scrambled (hashed) copy of your email and phone number so they can tell us which advert led to the booking; they cannot read the original. If you click Reject, none of this is used. Your choice is remembered in your browser. <button type="button" class="link" id="reset">Change your cookie choice</button></p>
+    <h2>Cookies and advert measurement</h2>
+    <p>We use cookies from Google (Analytics and Ads) and OpenAI (ChatGPT adverts) only if you click Accept. They help us see how people find us and which adverts lead to bookings. If you click Reject, these cookies are not set and none of the details below are shared. Your choice is remembered in your browser.</p>
+    <p>If you accept and then book a collection, we tell Google and OpenAI that a booking was made, so they can match it to an advert you saw or clicked and we can measure our adverts. Google receives your email address and phone number in hashed form. OpenAI receives the booking both from your browser and from our booking system, with the same booking reference so it is counted once. What OpenAI receives:</p>
+    <ul>
+      <li>your first name, last name, email address and phone number, in hashed form (converted into a one-way code, so they are not sent as readable text);</li>
+      <li>your postcode and country (United Kingdom), as plain text;</li>
+      <li>technical details: the type of event (a new collection booking), a random booking reference, the time, the page address, your browser type and internet address, a random reference kept in a cookie in your browser, and the advert click reference if you arrived from an advert.</li>
+    </ul>
+    <p>Hashed details are not anonymous: a company that already holds the same email address or phone number can match them to you. We share these details only to measure our adverts and match bookings to them.</p>
+    <p>You can withdraw your consent at any time with the button below. Your browser then stops sending these details, the cookies are removed, and our booking system cancels anything it has not yet sent. Details already sent cannot be recalled. <button type="button" class="link" id="reset">Change your cookie choice</button></p>
 
     <h2>Your rights and questions</h2>
     <p>You can ask us for a copy of your details, ask us to correct them, or ask us to delete them at any time. Just email <a href="mailto:collections@subnex.co.uk">collections@subnex.co.uk</a>. If you are not happy with how we handle your details, you can complain to the Information Commissioner's Office at <a href="https://ico.org.uk/make-a-complaint/">ico.org.uk</a>.</p>
