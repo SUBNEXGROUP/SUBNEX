@@ -10,7 +10,7 @@
      Скрипт OpenAI грузится ТОЛЬКО после «Accept» в баннере cookie. Событие — lead_created, только для новой
      заявки в обслуживаемом районе (сервер отдаёт new:true + lead_event_id). Тот же id уходит с сервера
      (Conversions API, миграция 100) — OpenAI оставляет одно событие. */
-  var OAI_PIXEL_ID = '';   // ← вписать Pixel ID источника «SUBNEX Website» (Ads Manager → Conversions). Больше нигде на сайте.
+  var OAI_PIXEL_ID = 'Y5LYCUtwkb364pVTgAgeaQ';   // источник «SUBNEX Website» (Ads Manager → Conversions). Больше нигде на сайте.
   var OAI_SENT = 'subnex_oai_sent';   // id, уже отправленные Pixel'ем из этого браузера
   var OAI_IDS = 'subnex_oai_ids';     // id всех новых заявок из этого браузера — для отзыва согласия
   var API = 'https://hgnihlkiccfbrejbpojp.supabase.co/rest/v1/rpc/';

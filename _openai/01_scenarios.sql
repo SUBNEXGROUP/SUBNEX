@@ -64,15 +64,23 @@ do $$ declare n0 int := (select count(*) from subnex_private.oai_events); r json
  insert into res(name,ok,got) values('7 rejected cookies → no server event', (select count(*) from subnex_private.oai_events)=n0 and r->>'new'='true', r::text);
 end $$;
 
--- 8. Test email: closed at once, planner never called, event validate_only.
+-- 8. Test email: no address row at all (no triggers, no emails, no planner), event validate_only.
 update subnex_private.oai_config set test_email='Collections+OAITest@subnex.co.uk';
-do $$ declare r jsonb := pg_temp.req('collections+oaitest@subnex.co.uk','CF24 5EE','{"day":"2030-01-01"}'); a public.addresses; e subnex_private.oai_events; begin
- select * into a from public.addresses where id=(select address_id from subnex_private.web_bookings where oai_event_id=(r->>'lead_event_id')::uuid);
+do $$ declare na int := (select count(*) from public.addresses); nl int := (select count(*) from subnex_private.log);
+  r jsonb := pg_temp.req('collections+oaitest@subnex.co.uk','CF24 5EE','{"day":"2030-01-01"}'); w subnex_private.web_bookings; e subnex_private.oai_events; begin
+ select * into w from subnex_private.web_bookings where oai_event_id=(r->>'lead_event_id')::uuid;
  select * into e from subnex_private.oai_events where id=(r->>'lead_event_id')::uuid;
  insert into res(name,ok,got) values('8 test → new:true test:true', r->>'new'='true' and r->>'test'='true', r::text);
- insert into res(name,ok,got) values('8 test → closed operator_removed', a.status='cancelled' and a.close_reason='operator_removed', a.status||'/'||a.close_reason);
- insert into res(name,ok,got) values('8 test → planner/emails never called', not exists(select 1 from subnex_private.log l where l.address_id=a.id and l.fn<>'close:operator_removed'), null);
- insert into res(name,ok,got) values('8 test → validate_only', e.validate_only, null);
+ insert into res(name,ok,got) values('8 test → no address row created', (select count(*) from public.addresses)=na and w.address_id is null and w.outcome='test', w.outcome);
+ insert into res(name,ok,got) values('8 test → no planner, no emails, nothing logged', (select count(*) from subnex_private.log)=nl, null);
+ insert into res(name,ok,got) values('8 test → validate_only, email hash from form', e.validate_only and e.payload->'user'->'emails_sha256'->>0=encode(extensions.digest('collections+oaitest@subnex.co.uk','sha256'),'hex'), null);
+end $$;
+do $$ declare n0 int := (select count(*) from subnex_private.oai_events); r jsonb := pg_temp.req('collections+oaitest@subnex.co.uk','BS1 4DJ'); begin
+ insert into res(name,ok,got) values('8 test + unserved postcode → no new, no event, no address', r->>'served'='false' and not (r ? 'new')
+   and (select count(*) from subnex_private.oai_events)=n0 and exists(select 1 from subnex_private.web_bookings where outcome='test_unserved'), r::text);
+end $$;
+do $$ declare r1 jsonb := pg_temp.req('collections+oaitest@subnex.co.uk','CF24 5EE'); begin
+ insert into res(name,ok,got) values('8 repeated test never becomes a duplicate', r1->>'new'='true', r1::text);
 end $$;
 
 -- 9. Worker: no key → waits; with key → posts once per event; 200 → sent; 500 → retry with same id; reply missing kept.
@@ -80,20 +88,20 @@ select subnex_private.oai_send();
 insert into res(name,ok,got) select '9 no key → nothing posted', (select count(*) from net.calls)=0, (select last_note from subnex_private.oai_config);
 insert into vault.decrypted_secrets values('openai_ads_capi_key','sk-test-not-real');
 select subnex_private.oai_send();
-insert into res(name,ok,got) select '9 posted 2 events', (select count(*) from net.calls)=2, (select string_agg(url,' ') from net.calls);
+insert into res(name,ok,got) select '9 posted 3 events', (select count(*) from net.calls)=3, (select string_agg(url,' ') from net.calls);
 insert into res(name,ok,got) select '9 bearer header, validate flag', (select bool_and(headers->>'Authorization'='Bearer sk-test-not-real') from net.calls)
-   and (select count(*) from net.calls where (body->>'validate_only')::bool)=1, null;
+   and (select count(*) from net.calls where (body->>'validate_only')::bool)=2, null;
 insert into net._http_response(id,status_code,content) select request_id, 200, '{}' from subnex_private.oai_events where validate_only;
 insert into net._http_response(id,status_code,content) select request_id, 503, 'busy' from subnex_private.oai_events where not validate_only;
 select subnex_private.oai_send();
-insert into res(name,ok,got) select '9 validate_only + 200 → validated (not sent)', (select state from subnex_private.oai_events where validate_only)='validated', null;
+insert into res(name,ok,got) select '9 validate_only + 200 → validated (not sent)', (select bool_and(state='validated') from subnex_private.oai_events where validate_only), null;
 insert into res(name,ok,got) select '9 503 → pending for retry', (select state from subnex_private.oai_events where not validate_only)='pending', null;
 update subnex_private.oai_events set last_try_at=now()-interval '1 hour' where state='pending';
 select subnex_private.oai_send();
 insert into res(name,ok,got) select '9 retry reuses same id', (select count(distinct body->'events'->0->>'id') from net.calls where not (body->>'validate_only')::bool)=1
    and (select count(*) from net.calls where not (body->>'validate_only')::bool)=2, null;
 select subnex_private.oai_send();
-insert into res(name,ok,got) select '9 no double post while waiting', (select count(*) from net.calls)=3, null;
+insert into res(name,ok,got) select '9 no double post while waiting', (select count(*) from net.calls)=4, null;
 
 
 -- 9b. Real event after retry: 200 → 'sent' (distinct from 'validated').
@@ -142,9 +150,9 @@ end $$;
 -- 13. Test email: real (non-validate) event only when test_validate_only=false; request still closed.
 update subnex_private.oai_config set validate_only=true, test_validate_only=false;
 do $$ declare r jsonb := pg_temp.req('collections+oaitest@subnex.co.uk','CF34 1AA'); begin
- insert into res(name,ok,got) values('13 test + test_validate_only=false → real event, request closed',
+ insert into res(name,ok,got) values('13 test + test_validate_only=false → real event, still no address',
    not (select validate_only from subnex_private.oai_events where id=(r->>'lead_event_id')::uuid)
-   and (select a.status from public.addresses a join subnex_private.web_bookings w on w.address_id=a.id where w.oai_event_id=(r->>'lead_event_id')::uuid)='cancelled', r::text);
+   and (select w.address_id is null and w.outcome='test' from subnex_private.web_bookings w where w.oai_event_id=(r->>'lead_event_id')::uuid), r::text);
 end $$;
 do $$ declare r jsonb := pg_temp.req('i@x.co','CF35 1AA'); begin
  insert into res(name,ok,got) values('13 ordinary request still validate_only while global flag is on',

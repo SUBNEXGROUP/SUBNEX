@@ -14,8 +14,9 @@
 --   * Consent withdrawn (public.subnex_oai_revoke, called from /privacy/): events not yet sent are dropped
 --     ('skipped', error 'consent_revoked'); the worker also re-checks consent right before every send.
 --     An event already handed to OpenAI cannot be recalled — the function reports how many.
---   * Test mode: a request from oai_config.test_email is closed at once ('operator_removed', no messages),
---     never reaches the planner or routes; its server event goes with validate_only = true unless
+--   * Test mode: a request from oai_config.test_email never becomes an address: no row in public.addresses,
+--     so no triggers, no emails/SMS, no planner, nothing in the console or reports. Only a web_bookings row
+--     with outcome 'test' (or 'test_unserved'). Its server event goes with validate_only = true unless
 --     oai_config.test_validate_only is set to false for a single real end-to-end test.
 --
 -- Safe to run twice. Backup of the previous subnex_web_booking → dispatch_backups '100:subnex_web_booking'.
@@ -82,11 +83,11 @@ language sql stable set search_path to '' as $$
 $$;
 
 -- Called from subnex_web_booking. Never raises: tracking must not break a booking.
-create or replace function subnex_private.oai_lead(p_address uuid, p_data jsonb, p_test boolean, p_new boolean)
+create or replace function subnex_private.oai_lead(p_address uuid, p_data jsonb, p_test boolean, p_new boolean, p_booking uuid default null)
 returns jsonb language plpgsql security definer set search_path to '' as $$
 declare
   c subnex_private.oai_config;
-  a public.addresses;
+  v_email text := lower(btrim(coalesce(p_data->>'email','')));
   ev uuid := gen_random_uuid();
   v_consent text := nullif(left(btrim(coalesce(p_data->'oai'->>'consent','')),10),'');
   h json := current_setting('request.headers',true)::json;
@@ -95,12 +96,11 @@ begin
   if not coalesce(p_new,false) then return jsonb_build_object('new',false); end if;
   begin
     update subnex_private.web_bookings set oai_event_id = ev, consent = v_consent
-     where id = (select w.id from subnex_private.web_bookings w
-                  where w.address_id = p_address and w.outcome = 'created' order by w.created_at desc limit 1);
+     where id = coalesce(p_booking, (select w.id from subnex_private.web_bookings w
+                  where w.address_id = p_address and w.outcome = 'created' order by w.created_at desc limit 1));
 
     select * into c from subnex_private.oai_config where singleton;
     if v_consent = 'granted' and coalesce(c.enabled,false) and coalesce(c.pixel_id,'') <> '' then
-      select * into a from public.addresses where id = p_address;
       v_ip := left(btrim(split_part(coalesce(h->>'cf-connecting-ip', h->>'x-forwarded-for',''),',',1)),64);
       v_ua := left(btrim(coalesce(h->>'user-agent','')),512);
       v_pc := upper(regexp_replace(btrim(coalesce(p_data->>'postcode','')),'\s+',' ','g'));
@@ -112,7 +112,7 @@ begin
       if v_obref !~ '^[A-Za-z0-9-]{8,64}$' then v_obref := null; end if;
 
       v_user := jsonb_strip_nulls(jsonb_build_object(
-        'emails_sha256', case when coalesce(a.contact_email,'')<>'' then jsonb_build_array(subnex_private.oai_sha256(lower(btrim(a.contact_email)))) end,
+        'emails_sha256', case when v_email<>'' then jsonb_build_array(subnex_private.oai_sha256(v_email)) end,
         'phone_numbers_sha256', case when subnex_private.oai_phone(p_data->>'phone') is not null
                                      then jsonb_build_array(subnex_private.oai_sha256(subnex_private.oai_phone(p_data->>'phone'))) end,
         'postal_codes', case when v_pc ~ '^[A-Z0-9 ]{5,8}$' then jsonb_build_array(v_pc) end,
@@ -227,7 +227,25 @@ end $$;
 revoke all on function public.subnex_oai_revoke(text[]) from public;
 grant execute on function public.subnex_oai_revoke(text[]) to anon, authenticated;
 
-revoke all on function subnex_private.oai_lead(uuid,jsonb,boolean,boolean) from public, anon, authenticated;
+-- Technical test request (oai_config.test_email): served check only, then a web_bookings row. Nothing else.
+create or replace function subnex_private.oai_test_booking(p_data jsonb, p_ip text, p_email text, p_phone text, p_pc text, p_ad jsonb, p_text text)
+returns jsonb language plpgsql security definer set search_path to '' as $$
+declare z subnex_private.dispatch_zones; v_id uuid;
+begin
+  z := subnex_private.dispatch_zone_for(p_text);
+  if z.code is null or z.mode = 'off' then
+    insert into subnex_private.web_bookings(ip,email,phone,postcode,outcome,detail,ad)
+    values (p_ip,p_email,p_phone,p_pc,'test_unserved','OpenAI Ads technical test',p_ad);
+    return jsonb_build_object('ok',true,'served',false);
+  end if;
+  insert into subnex_private.web_bookings(ip,email,phone,postcode,outcome,detail,ad)
+  values (p_ip,p_email,p_phone,p_pc,'test','OpenAI Ads technical test',p_ad) returning id into v_id;
+  return jsonb_build_object('ok',true,'booked',false,'picked',false)
+         || subnex_private.oai_lead(null, p_data, true, true, v_id);
+end $$;
+
+revoke all on function subnex_private.oai_test_booking(jsonb,text,text,text,text,jsonb,text) from public, anon, authenticated;
+revoke all on function subnex_private.oai_lead(uuid,jsonb,boolean,boolean,uuid) from public, anon, authenticated;
 revoke all on function subnex_private.oai_send() from public, anon, authenticated;
 
 -- Patch subnex_web_booking in place (same technique as 35/36/37): three exact replacements, stop if any is missing.
@@ -235,23 +253,18 @@ do $mig$
 declare src text; dst text;
   a1 text := $q$'page','referrer']) k$q$;
   b1 text := $q$'page','referrer','oppref']) k$q$;
-  a2 text := $q$   return jsonb_build_object('ok',true,'served',false);
-  end if;
- end if;$q$;
-  b2 text := $q$   return jsonb_build_object('ok',true,'served',false);
-  end if;
+  a2 text := $q$ select a.id into v_existing from public.addresses a$q$;
+  b2 text := $q$ if subnex_private.oai_is_test(v_email) then /* OAI_TEST_V1: technical test — no address, no emails, no planner */
+  return subnex_private.oai_test_booking(p_data,v_ip,v_email,v_phone_raw,v_pc,v_ad,v_text);
  end if;
- if v_existing is null and subnex_private.oai_is_test(v_email) then /* OAI_TEST_V1: never reaches the planner */
-  perform subnex_private.close_request(v_id,'operator_removed',false);
-  return jsonb_build_object('ok',true)||subnex_private.oai_lead(v_id,p_data,true,true);
- end if;$q$;
+ select a.id into v_existing from public.addresses a$q$;
   a3 text := $q$ return jsonb_build_object('ok',true,'booked',v_booked,$q$;
   b3 text := $q$ return /* OAI_LEAD_V1 */ subnex_private.oai_lead(v_id,p_data,false,v_existing is null)||jsonb_build_object('ok',true,'booked',v_booked,$q$;
 begin
   src := pg_get_functiondef('public.subnex_web_booking(jsonb)'::regprocedure);
   if position('OAI_LEAD_V1' in src) > 0 then raise notice '100: subnex_web_booking already patched'; return; end if;
   if position(a1 in src) = 0 then raise exception '100: ad key list not found'; end if;
-  if position(a2 in src) = 0 then raise exception '100: served=false block not found'; end if;
+  if position(a2 in src) = 0 then raise exception '100: duplicate lookup not found'; end if;
   if position(a3 in src) = 0 then raise exception '100: final return not found'; end if;
   insert into subnex_private.dispatch_backups(name, definition)
   select '100:subnex_web_booking', src

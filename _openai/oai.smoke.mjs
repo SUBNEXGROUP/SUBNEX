@@ -15,7 +15,7 @@ const server = http.createServer((q, s) => {
   const f = path.join(ROOT, p);
   if (!fs.existsSync(f)) { s.writeHead(404); return s.end(); }
   let body = fs.readFileSync(f);
-  if (p === '/site.js') body = Buffer.from(body.toString().replace("var OAI_PIXEL_ID = '';", `var OAI_PIXEL_ID = '${PIXEL}';`));
+  if (p === '/site.js') body = Buffer.from(body.toString().replace(/var OAI_PIXEL_ID = '[^']*';/, `var OAI_PIXEL_ID = '${PIXEL}';`));
   s.writeHead(200, { 'Content-Type': p.endsWith('.js') ? 'text/javascript' : 'text/html' });
   s.end(body);
 }).listen(0);

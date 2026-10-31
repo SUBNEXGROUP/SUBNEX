@@ -47,3 +47,7 @@ create function subnex_private.web_duplicate_notice(a uuid) returns boolean lang
 begin insert into subnex_private.log values('dup_notice',a); return true; end $$;
 create function subnex_private.site_email_enqueue(a uuid, k text, key text, x jsonb) returns void language plpgsql as $$
 begin insert into subnex_private.log values('received',a); end $$;
+-- Mimics site_status_mail / partner_status_notify: any status change of an address = an email would be queued.
+create function subnex_private.mail_on_status() returns trigger language plpgsql as $$
+begin if new.status is distinct from old.status then insert into subnex_private.log values('MAIL:'||new.status,new.id); end if; return new; end $$;
+create trigger mail_on_status after update of status on public.addresses for each row execute function subnex_private.mail_on_status();
