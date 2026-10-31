@@ -39,6 +39,8 @@
       f.parentNode.insertBefore(js, f);
     })(window, document, 'script', 'https://bzrcdn.openai.com/sdk/oaiq.min.js');
     window.oaiq('init', { pixelId: OAI_PIXEL_ID, debug: /[?&]oai_debug=1/.test(location.search) });
+    // Pixel хранит свой отказ (cookie __oaiq_consent) после отзыва; без этого вызова новое «Accept» его не снимает.
+    window.oaiq('consent', true);
   }
   loadOai();
   function sha(s) {
