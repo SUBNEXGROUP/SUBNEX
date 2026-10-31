@@ -1,0 +1,282 @@
+-- 100_openai_ads.sql — ChatGPT Ads (OpenAI): event lead_created for each NEW website request in a served area.
+--
+-- What it does
+--   * subnex_web_booking returns  new:true + lead_event_id  ONLY for a new request in a served area.
+--     Duplicates, bots, out-of-area, rate-limited and failed requests never get them.
+--   * The same lead_event_id is used by the browser Pixel (event_id) and by the server Conversions API (id),
+--     so OpenAI keeps one event (dedup key = pixel id + event name + id).
+--   * Server events go only when the visitor accepted cookies (p_data.oai.consent = 'granted').
+--   * oppref from the ad link is kept in web_bookings.ad (as are gclid / utm) and passed unchanged.
+--   * The Conversions API key lives in Supabase Vault (secret 'openai_ads_capi_key'), never in site files.
+--   * Off by default: subnex_private.oai_config.enabled = false, validate_only = true.
+--   * States: 'validated' = API accepted a validate_only check (NOTHING saved by OpenAI);
+--             'sent'      = real event accepted (validate_only = false). Only 'sent' is a real delivery.
+--   * Consent withdrawn (public.subnex_oai_revoke, called from /privacy/): events not yet sent are dropped
+--     ('skipped', error 'consent_revoked'); the worker also re-checks consent right before every send.
+--     An event already handed to OpenAI cannot be recalled — the function reports how many.
+--   * Test mode: a request from oai_config.test_email never becomes an address: no row in public.addresses,
+--     so no triggers, no emails/SMS, no planner, nothing in the console or reports. Only a web_bookings row
+--     with outcome 'test' (or 'test_unserved'). Its server event goes with validate_only = true unless
+--     oai_config.test_validate_only is set to false for a single real end-to-end test.
+--
+-- Safe to run twice. Backup of the previous subnex_web_booking → dispatch_backups '100:subnex_web_booking'.
+-- No DROP statements (the connector cancels them).
+
+create table if not exists subnex_private.oai_config (
+  singleton boolean primary key default true check (singleton),
+  enabled boolean not null default false,
+  pixel_id text,
+  validate_only boolean not null default true,
+  test_email text,
+  test_validate_only boolean not null default true,   -- false only for ONE real end-to-end test (see README)
+  last_run_at timestamptz,
+  last_note text
+);
+insert into subnex_private.oai_config(singleton) values (true) on conflict do nothing;
+alter table subnex_private.oai_config add column if not exists test_validate_only boolean not null default true;
+-- Pixel ID is set by a separate one-line statement after the migration (see _openai/README.md):
+--   update subnex_private.oai_config set pixel_id = '<PIXEL ID from Ads Manager>' where singleton;
+alter table subnex_private.oai_config enable row level security;
+
+alter table subnex_private.web_bookings add column if not exists oai_event_id uuid;
+alter table subnex_private.web_bookings add column if not exists consent text;
+
+create table if not exists subnex_private.oai_events (
+  id uuid primary key,                       -- = lead_event_id = Pixel event_id
+  address_id uuid,
+  created_at timestamptz not null default now(),
+  validate_only boolean not null default true,
+  payload jsonb not null,
+  state text not null default 'pending' check (state in ('pending','sending','sent','validated','failed','skipped')),
+  request_id bigint,
+  attempts int not null default 0,
+  last_try_at timestamptz,
+  sent_at timestamptz,
+  http_status int,
+  error text
+);
+alter table subnex_private.oai_events enable row level security;
+create index if not exists oai_events_state_idx on subnex_private.oai_events(state);
+
+create or replace function subnex_private.oai_sha256(p text) returns text
+language sql immutable set search_path to '' as $$
+  select case when coalesce(p,'')='' then null else encode(extensions.digest(convert_to(p,'UTF8'),'sha256'),'hex') end
+$$;
+
+-- Phone for matching: country code, digits only, no leading + or zeros. UK 07… → 447…
+create or replace function subnex_private.oai_phone(p text) returns text
+language plpgsql immutable set search_path to '' as $$
+declare d text := regexp_replace(coalesce(p,''),'\D','','g');
+begin
+  if d ~ '^00' then d := substr(d,3);
+  elsif d ~ '^0' then d := '44'||substr(d,2);
+  end if;
+  d := regexp_replace(d,'^0+','');
+  if length(d) between 8 and 15 then return d; end if;
+  return null;
+end $$;
+
+create or replace function subnex_private.oai_is_test(p_email text) returns boolean
+language sql stable set search_path to '' as $$
+  select coalesce((select lower(btrim(c.test_email)) = lower(btrim(p_email))
+                     from subnex_private.oai_config c where c.singleton and coalesce(c.test_email,'')<>''), false)
+$$;
+
+-- Called from subnex_web_booking. Never raises: tracking must not break a booking.
+create or replace function subnex_private.oai_lead(p_address uuid, p_data jsonb, p_test boolean, p_new boolean, p_booking uuid default null)
+returns jsonb language plpgsql security definer set search_path to '' as $$
+declare
+  c subnex_private.oai_config;
+  v_email text := lower(btrim(coalesce(p_data->>'email','')));
+  ev uuid := gen_random_uuid();
+  v_consent text := nullif(left(btrim(coalesce(p_data->'oai'->>'consent','')),10),'');
+  h json := current_setting('request.headers',true)::json;
+  v_ip text; v_ua text; v_pc text; v_user jsonb; v_payload jsonb; v_page text; v_oppref text; v_obref text;
+begin
+  if not coalesce(p_new,false) then return jsonb_build_object('new',false); end if;
+  begin
+    update subnex_private.web_bookings set oai_event_id = ev, consent = v_consent
+     where id = coalesce(p_booking, (select w.id from subnex_private.web_bookings w
+                  where w.address_id = p_address and w.outcome = 'created' order by w.created_at desc limit 1));
+
+    select * into c from subnex_private.oai_config where singleton;
+    if v_consent = 'granted' and coalesce(c.enabled,false) and coalesce(c.pixel_id,'') <> '' then
+      v_ip := left(btrim(split_part(coalesce(h->>'cf-connecting-ip', h->>'x-forwarded-for',''),',',1)),64);
+      v_ua := left(btrim(coalesce(h->>'user-agent','')),512);
+      v_pc := upper(regexp_replace(btrim(coalesce(p_data->>'postcode','')),'\s+',' ','g'));
+      v_page := coalesce(nullif(p_data->'ad'->>'page',''),'/');
+      if v_page !~ '^/[A-Za-z0-9/_.-]*$' then v_page := '/'; end if;
+      v_oppref := nullif(btrim(coalesce(p_data->'ad'->>'oppref','')),'');
+      if length(v_oppref) > 300 then v_oppref := null; end if;
+      v_obref := nullif(btrim(coalesce(p_data->'oai'->>'obref','')),'');
+      if v_obref !~ '^[A-Za-z0-9-]{8,64}$' then v_obref := null; end if;
+
+      v_user := jsonb_strip_nulls(jsonb_build_object(
+        'emails_sha256', case when v_email<>'' then jsonb_build_array(subnex_private.oai_sha256(v_email)) end,
+        'phone_numbers_sha256', case when subnex_private.oai_phone(p_data->>'phone') is not null
+                                     then jsonb_build_array(subnex_private.oai_sha256(subnex_private.oai_phone(p_data->>'phone'))) end,
+        'postal_codes', case when v_pc ~ '^[A-Z0-9 ]{5,8}$' then jsonb_build_array(v_pc) end,
+        'countries', jsonb_build_array('GB'),
+        'obref', v_obref,
+        'ip_address', nullif(v_ip,''),
+        'user_agent', nullif(v_ua,'')));
+
+      v_payload := jsonb_strip_nulls(jsonb_build_object(
+        'id', ev::text,
+        'type', 'lead_created',
+        'timestamp_ms', (extract(epoch from clock_timestamp())*1000)::bigint,
+        'oppref', v_oppref,
+        'source_url', 'https://subnex.co.uk' || v_page,
+        'action_source', 'web',
+        'user', v_user,
+        'data', jsonb_build_object('type','customer_action')));
+
+      insert into subnex_private.oai_events(id, address_id, validate_only, payload)
+      values (ev, p_address, case when coalesce(p_test,false) then coalesce(c.test_validate_only,true) else coalesce(c.validate_only,true) end, v_payload)
+      on conflict (id) do nothing;
+    end if;
+  exception when others then
+    return jsonb_build_object('new',true);   -- booking stays; no event id → no OpenAI event
+  end;
+  return jsonb_strip_nulls(jsonb_build_object('new',true,'lead_event_id',ev::text,'test',case when p_test then true end));
+end $$;
+
+-- Worker (cron every minute). Reads replies, retries up to 5 times with the SAME id (OpenAI keeps the first).
+create or replace function subnex_private.oai_send() returns jsonb
+language plpgsql security definer set search_path to '' as $$
+declare c subnex_private.oai_config; k text; e record; r record; n_sent int := 0; n_new int := 0;
+begin
+  select * into c from subnex_private.oai_config where singleton;
+
+  for e in select * from subnex_private.oai_events where state = 'sending' for update skip locked loop
+    select * into r from net._http_response where id = e.request_id;
+    if r.id is not null then
+      if r.status_code between 200 and 299 then
+        update subnex_private.oai_events
+           set state = case when e.validate_only then 'validated' else 'sent' end,
+               sent_at = now(), http_status = r.status_code, error = null
+         where id = e.id;
+        n_sent := n_sent + 1;
+      else
+        update subnex_private.oai_events
+           set state = case when e.attempts >= 5 or r.status_code = 400 then 'failed' else 'pending' end,
+               http_status = r.status_code,
+               error = left(coalesce(r.error_msg, r.content::text, ''),500)
+         where id = e.id;
+      end if;
+    elsif e.last_try_at < now() - interval '30 minutes' then
+      update subnex_private.oai_events set state = 'pending', error = 'no reply' where id = e.id;
+    end if;
+  end loop;
+
+  update subnex_private.oai_events set state='skipped', error='older than 7 days'
+   where state='pending' and created_at < now() - interval '6 days 20 hours';
+
+  if not coalesce(c.enabled,false) or coalesce(c.pixel_id,'') = '' then
+    update subnex_private.oai_config set last_run_at=now(), last_note='off' where singleton;
+    return jsonb_build_object('enabled',false);
+  end if;
+  select decrypted_secret into k from vault.decrypted_secrets where name = 'openai_ads_capi_key' limit 1;
+  if coalesce(k,'') = '' then
+    update subnex_private.oai_config set last_run_at=now(), last_note='no API key in Vault (openai_ads_capi_key)' where singleton;
+    return jsonb_build_object('enabled',true,'key',false);
+  end if;
+
+  -- Consent re-checked right before sending: anything no longer 'granted' is dropped.
+  update subnex_private.oai_events o set state = 'skipped', error = 'consent_revoked'
+   where o.state = 'pending'
+     and not exists (select 1 from subnex_private.web_bookings w where w.oai_event_id = o.id and w.consent = 'granted');
+
+  for e in select * from subnex_private.oai_events
+            where state = 'pending' and (last_try_at is null or last_try_at < now() - (attempts * interval '2 minutes'))
+            order by created_at limit 50 for update skip locked loop
+    update subnex_private.oai_events
+       set state='sending', attempts=attempts+1, last_try_at=now(),
+           request_id = net.http_post(
+             url := 'https://bzr.openai.com/v1/events?pid=' || c.pixel_id,
+             body := jsonb_build_object('validate_only', e.validate_only, 'events', jsonb_build_array(e.payload)),
+             headers := jsonb_build_object('Authorization','Bearer '||k,'Content-Type','application/json'),
+             timeout_milliseconds := 10000)
+     where id = e.id;
+    n_new := n_new + 1;
+  end loop;
+
+  update subnex_private.oai_config set last_run_at=now(),
+         last_note = format('accepted %s (sent or validated), queued %s', n_sent, n_new) where singleton;
+  return jsonb_build_object('enabled',true,'accepted',n_sent,'queued',n_new);
+end $$;
+
+-- Visitor withdrew consent (/privacy/ → "Change your cookie choice"). Ids are random UUIDs the browser got back
+-- from its own bookings, so they cannot be guessed. Max 20 per call.
+create or replace function public.subnex_oai_revoke(p_ids text[]) returns jsonb
+language plpgsql security definer set search_path to '' as $$
+declare v uuid[]; n_drop int := 0; n_late int := 0;
+begin
+  select coalesce(array_agg(x::uuid), '{}') into v
+    from (select x from unnest(coalesce(p_ids,'{}')) x
+           where x ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' limit 20) t;
+  if cardinality(v) = 0 then return jsonb_build_object('ok',true,'dropped',0,'already_sent',0); end if;
+  update subnex_private.web_bookings set consent = 'revoked' where oai_event_id = any(v);
+  update subnex_private.oai_events set state = 'skipped', error = 'consent_revoked'
+   where id = any(v) and state in ('pending','failed');
+  get diagnostics n_drop = row_count;
+  -- 'sending' = request already handed to OpenAI; if it fails it will not be retried (consent check above).
+  select count(*) into n_late from subnex_private.oai_events where id = any(v) and state in ('sending','sent','validated');
+  return jsonb_build_object('ok',true,'dropped',n_drop,'already_sent',n_late);
+end $$;
+revoke all on function public.subnex_oai_revoke(text[]) from public;
+grant execute on function public.subnex_oai_revoke(text[]) to anon, authenticated;
+
+-- Technical test request (oai_config.test_email): served check only, then a web_bookings row. Nothing else.
+create or replace function subnex_private.oai_test_booking(p_data jsonb, p_ip text, p_email text, p_phone text, p_pc text, p_ad jsonb, p_text text)
+returns jsonb language plpgsql security definer set search_path to '' as $$
+declare z subnex_private.dispatch_zones; v_id uuid;
+begin
+  z := subnex_private.dispatch_zone_for(p_text);
+  if z.code is null or z.mode = 'off' then
+    insert into subnex_private.web_bookings(ip,email,phone,postcode,outcome,detail,ad)
+    values (p_ip,p_email,p_phone,p_pc,'test_unserved','OpenAI Ads technical test',p_ad);
+    return jsonb_build_object('ok',true,'served',false);
+  end if;
+  insert into subnex_private.web_bookings(ip,email,phone,postcode,outcome,detail,ad)
+  values (p_ip,p_email,p_phone,p_pc,'test','OpenAI Ads technical test',p_ad) returning id into v_id;
+  return jsonb_build_object('ok',true,'booked',false,'picked',false)
+         || subnex_private.oai_lead(null, p_data, true, true, v_id);
+end $$;
+
+revoke all on function subnex_private.oai_test_booking(jsonb,text,text,text,text,jsonb,text) from public, anon, authenticated;
+revoke all on function subnex_private.oai_lead(uuid,jsonb,boolean,boolean,uuid) from public, anon, authenticated;
+revoke all on function subnex_private.oai_send() from public, anon, authenticated;
+
+-- Patch subnex_web_booking in place (same technique as 35/36/37): three exact replacements, stop if any is missing.
+do $mig$
+declare src text; dst text;
+  a1 text := $q$'page','referrer']) k$q$;
+  b1 text := $q$'page','referrer','oppref']) k$q$;
+  a2 text := $q$ select a.id into v_existing from public.addresses a$q$;
+  b2 text := $q$ if subnex_private.oai_is_test(v_email) then /* OAI_TEST_V1: technical test — no address, no emails, no planner */
+  return subnex_private.oai_test_booking(p_data,v_ip,v_email,v_phone_raw,v_pc,v_ad,v_text);
+ end if;
+ select a.id into v_existing from public.addresses a$q$;
+  a3 text := $q$ return jsonb_build_object('ok',true,'booked',v_booked,$q$;
+  b3 text := $q$ return /* OAI_LEAD_V1 */ subnex_private.oai_lead(v_id,p_data,false,v_existing is null)||jsonb_build_object('ok',true,'booked',v_booked,$q$;
+begin
+  src := pg_get_functiondef('public.subnex_web_booking(jsonb)'::regprocedure);
+  if position('OAI_LEAD_V1' in src) > 0 then raise notice '100: subnex_web_booking already patched'; return; end if;
+  if position(a1 in src) = 0 then raise exception '100: ad key list not found'; end if;
+  if position(a2 in src) = 0 then raise exception '100: duplicate lookup not found'; end if;
+  if position(a3 in src) = 0 then raise exception '100: final return not found'; end if;
+  insert into subnex_private.dispatch_backups(name, definition)
+  select '100:subnex_web_booking', src
+   where not exists (select 1 from subnex_private.dispatch_backups where name = '100:subnex_web_booking');
+  dst := replace(replace(replace(src, a1, b1), a2, b2), a3, b3);
+  execute dst;
+end $mig$;
+
+-- Cron: every minute; does nothing while there is nothing to send.
+do $c$
+begin
+  if not exists (select 1 from cron.job where jobname = 'subnex-openai-capi') then
+    perform cron.schedule('subnex-openai-capi', '* * * * *', 'select subnex_private.oai_send()');
+  end if;
+end $c$;

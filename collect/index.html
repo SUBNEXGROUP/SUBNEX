@@ -21,7 +21,7 @@
     gtag('config', 'G-NW09V1DXZT');
   </script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NW09V1DXZT"></script>
-  <script src="/site.js?v=20261007"></script>
+  <script src="/site.js?v=20261031"></script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -421,7 +421,8 @@
       if (!validate()) return;
       var go = $('go'); go.disabled = true; go.textContent = 'Sending…';
       var d = { name: v('name'), phone: v('phone'), email: v('email'), postcode: pc(), address: v('address'), bags: bags, notes: v('notes'),
-                website: $('website').value, elapsed_ms: Date.now() - openedAt, ad: window.SubnexSite ? SubnexSite.ad() : null };
+                website: $('website').value, elapsed_ms: Date.now() - openedAt, ad: window.SubnexSite ? SubnexSite.ad() : null,
+                oai: window.SubnexSite && SubnexSite.oai ? SubnexSite.oai() : null };
       if (pick) d.day = pick;
 
       // Координаты по индексу — тогда приложение сразу предложит дату. Не дождались за 4 секунды — не страшно.
@@ -456,11 +457,11 @@
           $('doneTitle').textContent = 'You are booked in, ' + first + '!';
           $('doneText').textContent = 'Your free collection is booked for ' + r[0].day_label + '. We have emailed the confirmation to ' + d.email + '.';
           $('doneKeep').textContent = 'On the morning of your collection we will email you a time window. Please leave your bags out that morning where we can see them from the street.';
-          if (window.SubnexSite) SubnexSite.lead(d.email, d.phone);
+          if (window.SubnexSite) SubnexSite.lead(d.email, d.phone, r[0]);
         } else {
           $('doneTitle').textContent = 'Thank you, ' + first + '!';
           $('doneText').textContent = 'Your request is in. Check your inbox: we are emailing your collection date to ' + d.email + ', often within minutes. If you cannot see it, please check your spam folder.';
-          if (window.SubnexSite) SubnexSite.lead(d.email, d.phone);
+          if (window.SubnexSite) SubnexSite.lead(d.email, d.phone, r[0]);
         }
         $('f').style.display = 'none';
         $('done').style.display = 'block';

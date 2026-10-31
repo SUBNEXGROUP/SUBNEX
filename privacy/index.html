@@ -14,7 +14,7 @@
     gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied', wait_for_update: 500 });
     try { if (localStorage.getItem('subnex_consent') === 'granted') gtag('consent', 'update', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' }); } catch (e) {}
   </script>
-  <script src="/site.js?v=20261007"></script>
+  <script src="/site.js?v=20261031"></script>
   <style>
     :root { --bg: #0D0D1A; --surface: #1C1C30; --border: rgba(255,255,255,.1); --green: #2ECC71; --white: #FFFFFF; --text: #E8E8F0; --muted: #9A9AB8; }
     * { box-sizing: border-box; }
@@ -52,7 +52,7 @@
     <p>Up to two years after your last collection. After that we delete them.</p>
 
     <h2>Cookies</h2>
-    <p>We use Google Analytics and Google Ads cookies only if you click Accept, to see how people find us and which adverts work. If you click Reject, they are not used. Your choice is remembered in your browser. <button type="button" class="link" id="reset">Change your cookie choice</button></p>
+    <p>We use Google Analytics, Google Ads and OpenAI (ChatGPT adverts) cookies only if you click Accept, to see how people find us and which adverts work. If you accept and then book, we also send Google and OpenAI a scrambled (hashed) copy of your email and phone number so they can tell us which advert led to the booking; they cannot read the original. If you click Reject, none of this is used. Your choice is remembered in your browser. <button type="button" class="link" id="reset">Change your cookie choice</button></p>
 
     <h2>Your rights and questions</h2>
     <p>You can ask us for a copy of your details, ask us to correct them, or ask us to delete them at any time. Just email <a href="mailto:collections@subnex.co.uk">collections@subnex.co.uk</a>. If you are not happy with how we handle your details, you can complain to the Information Commissioner's Office at <a href="https://ico.org.uk/make-a-complaint/">ico.org.uk</a>.</p>
@@ -61,9 +61,12 @@
   </div>
   <script>
     document.getElementById('reset').onclick = function () {
-      try { localStorage.removeItem('subnex_consent'); } catch (e) {}
-      gtag('consent', 'update', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied' });
-      location.reload();
+      try { localStorage.removeItem('subnex_consent'); } catch (e) {}   // сразу: дальше браузер уже ничего не шлёт
+      var done = function () {
+        gtag('consent', 'update', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied' });
+        location.reload();
+      };
+      if (window.SubnexSite && SubnexSite.revokeOai) SubnexSite.revokeOai().then(done, done); else done();
     };
   </script>
 </body>
