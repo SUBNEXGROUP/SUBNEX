@@ -84,6 +84,7 @@ const AD = '/collect/?utm_source=chatgpt&utm_medium=cpc&gclid=G-KEEP&oppref=opp_
   const log = await pg.evaluate(() => window.__oai);
   check('A pixel loaded once (consent granted)', st.pixelLoads === 1, st.pixelLoads);
   check('A init with pixelId', log.some(a => a[0] === 'init' && a[1].pixelId === PIXEL), log);
+  check('A consent(true) after init (clears a stored Pixel denial)', log.findIndex(a => a[0] === 'consent' && a[1] === true) > log.findIndex(a => a[0] === 'init'), log);
   check('A exactly one lead_created', m.length === 1 && m[0][1] === 'lead_created', m);
   check('A data type customer_action, event_id = server id', m[0] && m[0][2].type === 'customer_action' && m[0][3].event_id === 'ev-A', m);
   const ui = log.filter(a => a[0] === 'init' && a[1].user).pop();

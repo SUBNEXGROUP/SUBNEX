@@ -39,6 +39,8 @@
       f.parentNode.insertBefore(js, f);
     })(window, document, 'script', 'https://bzrcdn.openai.com/sdk/oaiq.min.js');
     window.oaiq('init', { pixelId: OAI_PIXEL_ID, debug: /[?&]oai_debug=1/.test(location.search) });
+    // Pixel хранит свой отказ (cookie __oaiq_consent) после отзыва; без этого вызова новое «Accept» его не снимает.
+    window.oaiq('consent', true);
   }
   loadOai();
   function sha(s) {
@@ -76,8 +78,9 @@
     box.className = 'sx-cookie';
     box.setAttribute('role', 'dialog');
     box.setAttribute('aria-label', 'Cookie choice');
-    box.innerHTML = '<p>We use cookies to see how people find us and to measure our adverts. ' +
-      'Nothing is shared for other purposes. <a href="/privacy/">Privacy</a></p>' +
+    box.innerHTML = '<p>We use cookies to see how people find us and to measure our adverts with Google and OpenAI. ' +
+      'If you accept and book, hashed contact details and your postcode are shared with them for this. ' +
+      '<a href="/privacy/">Privacy</a></p>' +
       '<div class="sx-b"><button type="button" class="sx-ok">Accept</button>' +
       '<button type="button" class="sx-no">Reject</button></div>';
     document.body.appendChild(box);
