@@ -6,6 +6,12 @@
   var ADS_LABEL = 'pSLACN_C3JQdEN6t7LRE';
   var KEY = 'subnex_consent';
   var GRANTED = { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' };
+  /* ChatGPT Ads (OpenAI) — Pixel ID из Ads Manager → Conversions. Пусто = Pixel не грузится вообще.
+     Скрипт OpenAI грузится ТОЛЬКО после «Accept» в баннере cookie. Событие — lead_created, только для новой
+     заявки в обслуживаемом районе (сервер отдаёт new:true + lead_event_id). Тот же id уходит с сервера
+     (Conversions API, миграция 100) — OpenAI оставляет одно событие. */
+  var OAI_PIXEL_ID = '';
+  var OAI_SENT = 'subnex_oai_sent';
 
   window.dataLayer = window.dataLayer || [];
   var gtag = window.gtag || function () { window.dataLayer.push(arguments); };
@@ -13,6 +19,38 @@
 
   function stored() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
   function store(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+  function cookie(n) { var m = document.cookie.match(new RegExp('(?:^|; )' + n + '=([^;]*)')); return m ? decodeURIComponent(m[1]) : ''; }
+
+  /* ── OpenAI Pixel: официальный загрузчик, только при согласии. ── */
+  function loadOai() {
+    if (!OAI_PIXEL_ID || stored() !== 'granted' || window.oaiq) return;
+    (function (w, d, s, u) {
+      if (w.oaiq) return;
+      var q = function () { q.q.push(arguments); };
+      q.q = [];
+      w.oaiq = q;
+      var js = d.createElement(s);
+      js.async = true;
+      js.src = u;
+      var f = d.getElementsByTagName(s)[0];
+      f.parentNode.insertBefore(js, f);
+    })(window, document, 'script', 'https://bzrcdn.openai.com/sdk/oaiq.min.js');
+    window.oaiq('init', { pixelId: OAI_PIXEL_ID, debug: /[?&]oai_debug=1/.test(location.search) });
+  }
+  loadOai();
+  function sha(s) {
+    if (!s || !window.crypto || !crypto.subtle || !window.TextEncoder) return Promise.resolve(null);
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)).then(function (b) {
+      return Array.prototype.map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+    }).catch(function () { return null; });
+  }
+  function oaiPhone(p) {
+    var d = String(p || '').replace(/\D/g, '');
+    if (/^00/.test(d)) d = d.slice(2); else if (/^0/.test(d)) d = '44' + d.slice(1);
+    d = d.replace(/^0+/, '');
+    return d.length >= 8 && d.length <= 15 ? d : '';
+  }
+  function sentIds() { try { return JSON.parse(localStorage.getItem(OAI_SENT) || '[]'); } catch (e) { return []; } }
 
   /* ── Баннер cookie: показывается, пока посетитель не выбрал. Выбор запоминается в браузере. ── */
   function banner() {
@@ -41,7 +79,7 @@
     document.documentElement.classList.add('sx-cookie-open');
     function done(v) {
       store(v);
-      if (v === 'granted') gtag('consent', 'update', GRANTED);
+      if (v === 'granted') { gtag('consent', 'update', GRANTED); loadOai(); }
       box.remove();
       document.documentElement.classList.remove('sx-cookie-open');
     }
@@ -58,6 +96,9 @@
       var v = q.get(k);
       if (v) ad[k] = v.slice(0, 300);
     });
+    /* oppref (клик из ChatGPT Ads) передаётся без изменений; слишком длинный не обрезаем, а не берём. */
+    var opp = q.get('oppref');
+    if (opp && opp.length <= 300) ad.oppref = opp;
     ad.page = location.pathname;
     if (document.referrer) {
       var r = new URL(document.referrer);
@@ -70,7 +111,16 @@
   function list(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
 
   window.SubnexSite = {
-    ad: function () { return ad; },
+    ad: function () {
+      /* Нет oppref в адресе, но Pixel сохранил его при прошлом заходе (cookie есть только при согласии). */
+      if (!ad.oppref && stored() === 'granted') { var c = cookie('__oppref'); if (c && c.length <= 300) ad.oppref = c; }
+      return ad;
+    },
+    /* Согласие и браузерная ссылка OpenAI — сервер шлёт Conversions API только при consent = granted. */
+    oai: function () {
+      var g = stored() === 'granted';
+      return { consent: stored() || 'unset', obref: g ? cookie('__obref') || null : null };
+    },
     /* Ответ subnex_area_check → короткий текст для посетителя (британский английский). */
     areaText: function (j) {
       if (!j || !j.valid) return null;
@@ -82,8 +132,10 @@
         return { ok: true, text: 'We collect in ' + j.district + ' on ' + list(d.map(function (x) { return DAYS[x] || x; })) + '. We will email you the exact date.' };
       return { ok: true, text: 'We collect in ' + j.district + '. We will email you the exact date.' };
     },
-    /* Заявка принята: событие для Google Analytics и (когда будет аккаунт) конверсия Google Ads. */
-    lead: function (email, phone) {
+    /* Заявка принята: событие для Google Analytics и конверсия Google Ads (без изменений),
+       плюс ChatGPT Ads lead_created — только если сервер подтвердил НОВУЮ заявку (res.new === true). */
+    lead: function (email, phone, res) {
+      try { this.oaiLead(email, phone, res); } catch (e) {}
       try {
         gtag('event', 'generate_lead', { page: location.pathname });
         if (ADS_ID && ADS_LABEL) {
@@ -97,6 +149,23 @@
           gtag('event', 'conversion', { send_to: ADS_ID + '/' + ADS_LABEL });
         }
       } catch (e) {}
+    },
+    oaiLead: function (email, phone, res) {
+      var id = res && res.new === true && typeof res.lead_event_id === 'string' ? res.lead_event_id : '';
+      if (!id || !OAI_PIXEL_ID || stored() !== 'granted') return false;
+      var done = sentIds();
+      if (done.indexOf(id) >= 0) return false;            // уже отправляли этот id в этом браузере
+      done.push(id);
+      try { localStorage.setItem(OAI_SENT, JSON.stringify(done.slice(-20))); } catch (e) {}
+      loadOai();
+      Promise.all([sha(String(email || '').trim().toLowerCase()), sha(oaiPhone(phone))]).then(function (h) {
+        var user = { country: 'GB' };
+        if (h[0]) user.email_sha256 = h[0];
+        if (h[1]) user.phone_number_sha256 = h[1];
+        window.oaiq('init', { pixelId: OAI_PIXEL_ID, user: user });
+        window.oaiq('measure', 'lead_created', { type: 'customer_action' }, { event_id: id });
+      });
+      return true;
     }
   };
 })();

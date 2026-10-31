@@ -11,7 +11,7 @@
     gtag('config', 'G-NW09V1DXZT');
   </script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NW09V1DXZT"></script>
-  <script src="/site.js?v=20261007"></script>
+  <script src="/site.js?v=20261031"></script>
   <script>
     /* Make direct form links reliable on iPhone before responsive layout runs. */
     (function() {
@@ -1819,7 +1819,8 @@
               address: val('address'), bags: document.getElementById('quantityInput').value, notes: val('notes'),
               website: document.getElementById('website').value, elapsed_ms: Date.now() - openedAt,
               lat: g ? g.lat : null, lng: g ? g.lng : null,
-              ad: window.SubnexSite ? SubnexSite.ad() : null
+              ad: window.SubnexSite ? SubnexSite.ad() : null,
+              oai: window.SubnexSite && SubnexSite.oai ? SubnexSite.oai() : null
             } })
           });
         }).then(function(res) {
@@ -1835,7 +1836,7 @@
 
         Promise.all([toApp, toMail]).then(function(r) {
           if (r[0] || r[1]) {
-            if (window.SubnexSite && !(r[0] && r[0].served === false)) SubnexSite.lead(val('email'), val('phone'));
+            if (window.SubnexSite && !(r[0] && r[0].served === false)) SubnexSite.lead(val('email'), val('phone'), r[0]);
             if (r[0] && r[0].served === false) {
               success.querySelector('h3').textContent = 'Thank you!';
               success.querySelector('p').textContent = 'We are not collecting in your area just yet, but we are growing and plan to cover more of South Wales soon. We have kept your details and will be in touch as soon as we start collecting near you.';
