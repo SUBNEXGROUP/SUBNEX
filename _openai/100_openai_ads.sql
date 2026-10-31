@@ -9,8 +9,14 @@
 --   * oppref from the ad link is kept in web_bookings.ad (as are gclid / utm) and passed unchanged.
 --   * The Conversions API key lives in Supabase Vault (secret 'openai_ads_capi_key'), never in site files.
 --   * Off by default: subnex_private.oai_config.enabled = false, validate_only = true.
+--   * States: 'validated' = API accepted a validate_only check (NOTHING saved by OpenAI);
+--             'sent'      = real event accepted (validate_only = false). Only 'sent' is a real delivery.
+--   * Consent withdrawn (public.subnex_oai_revoke, called from /privacy/): events not yet sent are dropped
+--     ('skipped', error 'consent_revoked'); the worker also re-checks consent right before every send.
+--     An event already handed to OpenAI cannot be recalled — the function reports how many.
 --   * Test mode: a request from oai_config.test_email is closed at once ('operator_removed', no messages),
---     never reaches the planner or routes, and its server event is always sent with validate_only = true.
+--     never reaches the planner or routes; its server event goes with validate_only = true unless
+--     oai_config.test_validate_only is set to false for a single real end-to-end test.
 --
 -- Safe to run twice. Backup of the previous subnex_web_booking → dispatch_backups '100:subnex_web_booking'.
 -- No DROP statements (the connector cancels them).
@@ -21,10 +27,14 @@ create table if not exists subnex_private.oai_config (
   pixel_id text,
   validate_only boolean not null default true,
   test_email text,
+  test_validate_only boolean not null default true,   -- false only for ONE real end-to-end test (see README)
   last_run_at timestamptz,
   last_note text
 );
 insert into subnex_private.oai_config(singleton) values (true) on conflict do nothing;
+alter table subnex_private.oai_config add column if not exists test_validate_only boolean not null default true;
+-- Pixel ID is set by a separate one-line statement after the migration (see _openai/README.md):
+--   update subnex_private.oai_config set pixel_id = '<PIXEL ID from Ads Manager>' where singleton;
 alter table subnex_private.oai_config enable row level security;
 
 alter table subnex_private.web_bookings add column if not exists oai_event_id uuid;
@@ -36,7 +46,7 @@ create table if not exists subnex_private.oai_events (
   created_at timestamptz not null default now(),
   validate_only boolean not null default true,
   payload jsonb not null,
-  state text not null default 'pending' check (state in ('pending','sending','sent','failed','skipped')),
+  state text not null default 'pending' check (state in ('pending','sending','sent','validated','failed','skipped')),
   request_id bigint,
   attempts int not null default 0,
   last_try_at timestamptz,
@@ -122,7 +132,7 @@ begin
         'data', jsonb_build_object('type','customer_action')));
 
       insert into subnex_private.oai_events(id, address_id, validate_only, payload)
-      values (ev, p_address, coalesce(c.validate_only,true) or coalesce(p_test,false), v_payload)
+      values (ev, p_address, case when coalesce(p_test,false) then coalesce(c.test_validate_only,true) else coalesce(c.validate_only,true) end, v_payload)
       on conflict (id) do nothing;
     end if;
   exception when others then
@@ -142,7 +152,10 @@ begin
     select * into r from net._http_response where id = e.request_id;
     if r.id is not null then
       if r.status_code between 200 and 299 then
-        update subnex_private.oai_events set state='sent', sent_at=now(), http_status=r.status_code, error=null where id=e.id;
+        update subnex_private.oai_events
+           set state = case when e.validate_only then 'validated' else 'sent' end,
+               sent_at = now(), http_status = r.status_code, error = null
+         where id = e.id;
         n_sent := n_sent + 1;
       else
         update subnex_private.oai_events
@@ -169,6 +182,11 @@ begin
     return jsonb_build_object('enabled',true,'key',false);
   end if;
 
+  -- Consent re-checked right before sending: anything no longer 'granted' is dropped.
+  update subnex_private.oai_events o set state = 'skipped', error = 'consent_revoked'
+   where o.state = 'pending'
+     and not exists (select 1 from subnex_private.web_bookings w where w.oai_event_id = o.id and w.consent = 'granted');
+
   for e in select * from subnex_private.oai_events
             where state = 'pending' and (last_try_at is null or last_try_at < now() - (attempts * interval '2 minutes'))
             order by created_at limit 50 for update skip locked loop
@@ -184,9 +202,30 @@ begin
   end loop;
 
   update subnex_private.oai_config set last_run_at=now(),
-         last_note = format('sent %s, queued %s', n_sent, n_new) where singleton;
-  return jsonb_build_object('enabled',true,'sent',n_sent,'queued',n_new);
+         last_note = format('accepted %s (sent or validated), queued %s', n_sent, n_new) where singleton;
+  return jsonb_build_object('enabled',true,'accepted',n_sent,'queued',n_new);
 end $$;
+
+-- Visitor withdrew consent (/privacy/ → "Change your cookie choice"). Ids are random UUIDs the browser got back
+-- from its own bookings, so they cannot be guessed. Max 20 per call.
+create or replace function public.subnex_oai_revoke(p_ids text[]) returns jsonb
+language plpgsql security definer set search_path to '' as $$
+declare v uuid[]; n_drop int := 0; n_late int := 0;
+begin
+  select coalesce(array_agg(x::uuid), '{}') into v
+    from (select x from unnest(coalesce(p_ids,'{}')) x
+           where x ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' limit 20) t;
+  if cardinality(v) = 0 then return jsonb_build_object('ok',true,'dropped',0,'already_sent',0); end if;
+  update subnex_private.web_bookings set consent = 'revoked' where oai_event_id = any(v);
+  update subnex_private.oai_events set state = 'skipped', error = 'consent_revoked'
+   where id = any(v) and state in ('pending','failed');
+  get diagnostics n_drop = row_count;
+  -- 'sending' = request already handed to OpenAI; if it fails it will not be retried (consent check above).
+  select count(*) into n_late from subnex_private.oai_events where id = any(v) and state in ('sending','sent','validated');
+  return jsonb_build_object('ok',true,'dropped',n_drop,'already_sent',n_late);
+end $$;
+revoke all on function public.subnex_oai_revoke(text[]) from public;
+grant execute on function public.subnex_oai_revoke(text[]) to anon, authenticated;
 
 revoke all on function subnex_private.oai_lead(uuid,jsonb,boolean,boolean) from public, anon, authenticated;
 revoke all on function subnex_private.oai_send() from public, anon, authenticated;

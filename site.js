@@ -10,8 +10,11 @@
      Скрипт OpenAI грузится ТОЛЬКО после «Accept» в баннере cookie. Событие — lead_created, только для новой
      заявки в обслуживаемом районе (сервер отдаёт new:true + lead_event_id). Тот же id уходит с сервера
      (Conversions API, миграция 100) — OpenAI оставляет одно событие. */
-  var OAI_PIXEL_ID = '';
-  var OAI_SENT = 'subnex_oai_sent';
+  var OAI_PIXEL_ID = '';   // ← вписать Pixel ID источника «SUBNEX Website» (Ads Manager → Conversions). Больше нигде на сайте.
+  var OAI_SENT = 'subnex_oai_sent';   // id, уже отправленные Pixel'ем из этого браузера
+  var OAI_IDS = 'subnex_oai_ids';     // id всех новых заявок из этого браузера — для отзыва согласия
+  var API = 'https://hgnihlkiccfbrejbpojp.supabase.co/rest/v1/rpc/';
+  var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ';
 
   window.dataLayer = window.dataLayer || [];
   var gtag = window.gtag || function () { window.dataLayer.push(arguments); };
@@ -50,7 +53,9 @@
     d = d.replace(/^0+/, '');
     return d.length >= 8 && d.length <= 15 ? d : '';
   }
-  function sentIds() { try { return JSON.parse(localStorage.getItem(OAI_SENT) || '[]'); } catch (e) { return []; } }
+  function readIds(k) { try { var a = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function sentIds() { return readIds(OAI_SENT); }
+  function remember(k, id) { var a = readIds(k); if (a.indexOf(id) < 0) a.push(id); try { localStorage.setItem(k, JSON.stringify(a.slice(-20))); } catch (e) {} }
 
   /* ── Баннер cookie: показывается, пока посетитель не выбрал. Выбор запоминается в браузере. ── */
   function banner() {
@@ -152,20 +157,40 @@
     },
     oaiLead: function (email, phone, res) {
       var id = res && res.new === true && typeof res.lead_event_id === 'string' ? res.lead_event_id : '';
-      if (!id || !OAI_PIXEL_ID || stored() !== 'granted') return false;
-      var done = sentIds();
-      if (done.indexOf(id) >= 0) return false;            // уже отправляли этот id в этом браузере
-      done.push(id);
-      try { localStorage.setItem(OAI_SENT, JSON.stringify(done.slice(-20))); } catch (e) {}
+      if (!id || stored() !== 'granted') return false;
+      remember(OAI_IDS, id);                               // сервер мог поставить событие в очередь — помним для отзыва
+      if (!OAI_PIXEL_ID) return false;
+      if (sentIds().indexOf(id) >= 0) return false;        // уже отправляли этот id в этом браузере
+      remember(OAI_SENT, id);
       loadOai();
       Promise.all([sha(String(email || '').trim().toLowerCase()), sha(oaiPhone(phone))]).then(function (h) {
         var user = { country: 'GB' };
         if (h[0]) user.email_sha256 = h[0];
         if (h[1]) user.phone_number_sha256 = h[1];
+        if (stored() !== 'granted') return;                 // согласие отозвали, пока считался хэш
         window.oaiq('init', { pixelId: OAI_PIXEL_ID, user: user });
         window.oaiq('measure', 'lead_created', { type: 'customer_action' }, { event_id: id });
       });
       return true;
+    },
+    /* Отзыв согласия (/privacy/ → «Change your cookie choice»): Pixel выключается и стирает свои cookie,
+       сервер снимает ещё не отправленные события этих заявок. Уже переданное в OpenAI отозвать нельзя. */
+    revokeOai: function () {
+      try { if (window.oaiq) window.oaiq('consent', false); } catch (e) {}
+      ['__oppref', '__obref'].forEach(function (n) {
+        ['', '; domain=.' + location.hostname.replace(/^www\./, ''), '; domain=' + location.hostname].forEach(function (d) {
+          document.cookie = n + '=; Max-Age=0; path=/' + d;
+        });
+      });
+      var ids = readIds(OAI_IDS);
+      try { localStorage.removeItem(OAI_IDS); } catch (e) {}
+      if (!ids.length || !window.fetch) return Promise.resolve({ dropped: 0 });
+      return Promise.race([
+        fetch(API + 'subnex_oai_revoke', { method: 'POST', keepalive: true,
+          headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: 'Bearer ' + ANON },
+          body: JSON.stringify({ p_ids: ids }) }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+        new Promise(function (res) { setTimeout(function () { res(null); }, 3000); })
+      ]);
     }
   };
 })();

@@ -86,7 +86,7 @@ insert into res(name,ok,got) select '9 bearer header, validate flag', (select bo
 insert into net._http_response(id,status_code,content) select request_id, 200, '{}' from subnex_private.oai_events where validate_only;
 insert into net._http_response(id,status_code,content) select request_id, 503, 'busy' from subnex_private.oai_events where not validate_only;
 select subnex_private.oai_send();
-insert into res(name,ok,got) select '9 200 → sent', (select state from subnex_private.oai_events where validate_only)='sent', null;
+insert into res(name,ok,got) select '9 validate_only + 200 → validated (not sent)', (select state from subnex_private.oai_events where validate_only)='validated', null;
 insert into res(name,ok,got) select '9 503 → pending for retry', (select state from subnex_private.oai_events where not validate_only)='pending', null;
 update subnex_private.oai_events set last_try_at=now()-interval '1 hour' where state='pending';
 select subnex_private.oai_send();
@@ -94,6 +94,62 @@ insert into res(name,ok,got) select '9 retry reuses same id', (select count(dist
    and (select count(*) from net.calls where not (body->>'validate_only')::bool)=2, null;
 select subnex_private.oai_send();
 insert into res(name,ok,got) select '9 no double post while waiting', (select count(*) from net.calls)=3, null;
+
+
+-- 9b. Real event after retry: 200 → 'sent' (distinct from 'validated').
+insert into net._http_response(id,status_code,content) select request_id, 200, '{}' from subnex_private.oai_events where not validate_only and state='sending';
+select subnex_private.oai_send();
+insert into res(name,ok,got) select '9b real event + 200 → sent', (select state from subnex_private.oai_events where not validate_only)='sent', null;
+insert into res(name,ok,got) select '9b nobody is both sent and validate_only', not exists(select 1 from subnex_private.oai_events where state='sent' and validate_only), null;
+
+-- 10. Consent withdrawn before the worker sends → nothing is posted.
+update subnex_private.oai_config set validate_only=false;
+do $$ declare r jsonb := pg_temp.req('f@x.co','CF31 1AA'); v jsonb; n0 int := (select count(*) from net.calls); begin
+ v := public.subnex_oai_revoke(array[r->>'lead_event_id','not-a-uuid']);
+ perform subnex_private.oai_send();
+ insert into res(name,ok,got) values('10 revoke → pending dropped', v->>'dropped'='1' and v->>'already_sent'='0', v::text);
+ insert into res(name,ok,got) values('10 revoke → event skipped consent_revoked', (select state||'/'||error from subnex_private.oai_events where id=(r->>'lead_event_id')::uuid)='skipped/consent_revoked', null);
+ insert into res(name,ok,got) values('10 revoke → nothing posted', (select count(*) from net.calls)=n0, null);
+ insert into res(name,ok,got) values('10 revoke → booking consent revoked, request itself untouched',
+   (select w.consent from subnex_private.web_bookings w where w.oai_event_id=(r->>'lead_event_id')::uuid)='revoked'
+   and (select a.status from public.addresses a join subnex_private.web_bookings w on w.address_id=a.id where w.oai_event_id=(r->>'lead_event_id')::uuid)='new', null);
+end $$;
+
+-- 11. Consent changed by other means → worker re-checks before sending.
+do $$ declare r jsonb := pg_temp.req('g@x.co','CF32 1AA'); n0 int := (select count(*) from net.calls); begin
+ update subnex_private.web_bookings set consent='revoked' where oai_event_id=(r->>'lead_event_id')::uuid;
+ perform subnex_private.oai_send();
+ insert into res(name,ok,got) values('11 worker re-checks consent → not posted', (select count(*) from net.calls)=n0
+   and (select state from subnex_private.oai_events where id=(r->>'lead_event_id')::uuid)='skipped', null);
+end $$;
+
+-- 12. Revoke after hand-off: reported as already sent; a failed reply is NOT retried.
+do $$ declare r jsonb := pg_temp.req('h@x.co','CF33 1AA'); v jsonb; n1 int; begin
+ perform subnex_private.oai_send();                         -- now 'sending'
+ v := public.subnex_oai_revoke(array[r->>'lead_event_id']);
+ insert into net._http_response(id,status_code,content) select request_id, 503, 'busy' from subnex_private.oai_events where id=(r->>'lead_event_id')::uuid;
+ perform subnex_private.oai_send();
+ update subnex_private.oai_events set last_try_at=now()-interval '1 hour' where id=(r->>'lead_event_id')::uuid;
+ n1 := (select count(*) from net.calls);
+ perform subnex_private.oai_send();
+ insert into res(name,ok,got) values('12 revoke during hand-off → reported already_sent', v->>'already_sent'='1', v::text);
+ insert into res(name,ok,got) values('12 failed in-flight event not retried after revoke', (select count(*) from net.calls)=n1
+   and (select state from subnex_private.oai_events where id=(r->>'lead_event_id')::uuid)='skipped', null);
+ insert into res(name,ok,got) values('12 revoke RPC callable by anon', has_function_privilege('anon','public.subnex_oai_revoke(text[])','execute')
+   and not has_function_privilege('anon','subnex_private.oai_send()','execute'), null);
+end $$;
+
+-- 13. Test email: real (non-validate) event only when test_validate_only=false; request still closed.
+update subnex_private.oai_config set validate_only=true, test_validate_only=false;
+do $$ declare r jsonb := pg_temp.req('collections+oaitest@subnex.co.uk','CF34 1AA'); begin
+ insert into res(name,ok,got) values('13 test + test_validate_only=false → real event, request closed',
+   not (select validate_only from subnex_private.oai_events where id=(r->>'lead_event_id')::uuid)
+   and (select a.status from public.addresses a join subnex_private.web_bookings w on w.address_id=a.id where w.oai_event_id=(r->>'lead_event_id')::uuid)='cancelled', r::text);
+end $$;
+do $$ declare r jsonb := pg_temp.req('i@x.co','CF35 1AA'); begin
+ insert into res(name,ok,got) values('13 ordinary request still validate_only while global flag is on',
+   (select validate_only from subnex_private.oai_events where id=(r->>'lead_event_id')::uuid), null);
+end $$;
 
 select n, case when ok then 'PASS' else 'FAIL' end r, name, case when not ok then got end from res order by n;
 select count(*) filter (where ok) pass, count(*) filter (where not ok) fail from res;

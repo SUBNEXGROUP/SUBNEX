@@ -44,6 +44,7 @@ async function page(ctx, opts) {
     if (u.includes('api.postcodes.io')) return route.fulfill({ json: { result: { latitude: 51.48, longitude: -3.18 } } });
     if (u.includes('/rpc/subnex_area_check')) return route.fulfill({ json: { valid: true, served: true, district: 'CF10', days: ['Monday'], mode: 'weekly' } });
     if (u.includes('/rpc/subnex_booking_days')) return route.fulfill({ json: { ok: true, days: [] } });
+    if (u.includes('/rpc/subnex_oai_revoke')) { st.revoke = JSON.parse(route.request().postData()).p_ids; return route.fulfill({ json: { ok: true, dropped: 1, already_sent: 0 } }); }
     if (u.includes('/rpc/subnex_web_booking')) {
       st.booking = JSON.parse(route.request().postData()).p_data;
       return opts.app === 'error' ? route.fulfill({ status: 400, json: { message: 'EMAIL_INVALID' } }) : route.fulfill({ json: opts.app });
@@ -131,6 +132,35 @@ for (const [label, app, mail] of [
   await pg.click('.sx-cookie .sx-ok');
   await pg.waitForTimeout(300);
   check('I after Accept → pixel loaded, init once', st.pixelLoads === 1 && (await pg.evaluate(() => window.__oai.filter(a => a[0] === 'init').length)) === 1, st);
+  await ctx.close();
+}
+// K. Withdraw consent on /privacy/ → Pixel consent(false), cookies gone, server told which ids, nothing further sent
+{
+  const ctx = await consentCtx('granted');
+  const { pg } = await page(ctx, { app: NEW('ev-K') });
+  await fillCollect(pg, AD);
+  check('K before revoke: one lead_created', (await measures(pg)).length === 1);
+  await ctx.addCookies([{ name: '__oppref', value: 'opp_TEST-123', url: BASE }, { name: '__obref', value: '123e4567-e89b-42d3-a456-426614174000', url: BASE }]);
+  const { pg: pp, st: ps } = await page(ctx, { app: NEW('ev-x') });
+  await pp.goto(BASE + '/privacy/');
+  await pp.waitForTimeout(300);
+  await pp.evaluate(() => { window.__keep = window.__oai; });
+  const nav = pp.waitForNavigation();
+  const logBefore = pp.evaluate(() => new Promise(r => { const o = window.oaiq; window.oaiq = function () { (window.__keep = window.__keep || []).push(Array.from(arguments)); sessionStorage.setItem('k', JSON.stringify(window.__keep)); return o && o.apply(null, arguments); }; r(); }));
+  await logBefore;
+  await pp.click('#reset');
+  await nav; await pp.waitForTimeout(300);
+  const calls = JSON.parse(await pp.evaluate(() => sessionStorage.getItem('k') || '[]'));
+  check('K pixel told consent=false', calls.some(a => a[0] === 'consent' && a[1] === false), calls);
+  check('K server told to drop ev-K', JSON.stringify(ps.revoke) === '["ev-K"]', ps.revoke);
+  const ck = (await ctx.cookies(BASE)).map(c => c.name);
+  check('K __oppref/__obref removed', !ck.includes('__oppref') && !ck.includes('__obref'), ck);
+  check('K consent cleared, banner back', (await pp.evaluate(() => localStorage.getItem('subnex_consent'))) === null && (await pp.locator('.sx-cookie').count()) === 1);
+  // L. Next booking without a new Accept: no Pixel, server not allowed to send
+  const { pg: p3, st: s3 } = await page(ctx, { app: NEW('ev-L') });
+  await fillCollect(p3, AD);
+  check('L after revoke → pixel not loaded, no event', s3.pixelLoads === 0 && (await measures(p3)).length === 0, s3);
+  check('L after revoke → server sees consent unset', s3.booking.oai.consent === 'unset' && !s3.booking.oai.obref, s3.booking.oai);
   await ctx.close();
 }
 // J. Main page form

@@ -5,7 +5,7 @@ create schema subnex_private;
 create schema vault;
 create schema net;
 create schema cron;
-create role anon; create role authenticated;
+do $r$ begin if not exists (select 1 from pg_roles where rolname=$q$anon$q$) then create role anon; create role authenticated; end if; end $r$;
 
 create table vault.decrypted_secrets(name text, decrypted_secret text);
 create table net._http_response(id bigserial primary key, status_code int, content text, error_msg text, timed_out bool, created timestamptz default now());

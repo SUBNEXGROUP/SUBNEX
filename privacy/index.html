@@ -61,13 +61,12 @@
   </div>
   <script>
     document.getElementById('reset').onclick = function () {
-      try { localStorage.removeItem('subnex_consent'); } catch (e) {}
-      try { if (window.oaiq) oaiq('consent', false); } catch (e) {}
-      ['__oppref', '__obref'].forEach(function (n) {
-        ['', '; domain=.subnex.co.uk', '; domain=subnex.co.uk'].forEach(function (d) { document.cookie = n + '=; Max-Age=0; path=/' + d; });
-      });
-      gtag('consent', 'update', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied' });
-      location.reload();
+      try { localStorage.removeItem('subnex_consent'); } catch (e) {}   // сразу: дальше браузер уже ничего не шлёт
+      var done = function () {
+        gtag('consent', 'update', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied' });
+        location.reload();
+      };
+      if (window.SubnexSite && SubnexSite.revokeOai) SubnexSite.revokeOai().then(done, done); else done();
     };
   </script>
 </body>
