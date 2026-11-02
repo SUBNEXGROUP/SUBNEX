@@ -453,6 +453,12 @@
         if (r[0] && r[0].served === false) {
           $('doneTitle').textContent = 'Thank you, ' + first + '!';
           $('doneText').textContent = 'We are not collecting in your area just yet, but we are growing. We have kept your details and will be in touch as soon as we start collecting near you.';
+        } else if (r[0] && r[0].today_window) {
+          // Повтор в день вывоза, окно уже отправлено утром — показываем его, а не «пришлём дату».
+          $('doneTitle').textContent = 'You are already booked in, ' + first + '!';
+          $('doneText').textContent = 'There is no need to book again. Your collection is today and our driver will be with you between ' + r[0].today_window + '. We have emailed this to ' + d.email + ' as well.';
+          $('doneKeep').textContent = 'Please make sure your bags are outside and easy to see from the street.';
+          if (window.SubnexSite) SubnexSite.lead(d.email, d.phone, r[0]);
         } else if (r[0] && r[0].booked) {
           $('doneTitle').textContent = 'You are booked in, ' + first + '!';
           $('doneText').textContent = 'Your free collection is booked for ' + r[0].day_label + '. We have emailed the confirmation to ' + d.email + '.';

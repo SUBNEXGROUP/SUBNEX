@@ -1837,7 +1837,11 @@
         Promise.all([toApp, toMail]).then(function(r) {
           if (r[0] || r[1]) {
             if (window.SubnexSite && !(r[0] && r[0].served === false)) SubnexSite.lead(val('email'), val('phone'), r[0]);
-            if (r[0] && r[0].served === false) {
+            if (r[0] && r[0].today_window) {
+              // Повтор в день вывоза, окно уже отправлено утром.
+              success.querySelector('h3').textContent = 'You are already booked in!';
+              success.querySelector('p').textContent = 'There is no need to book again. Your collection is today and our driver will be with you between ' + r[0].today_window + '. Please make sure your bags are outside and easy to see from the street.';
+            } else if (r[0] && r[0].served === false) {
               success.querySelector('h3').textContent = 'Thank you!';
               success.querySelector('p').textContent = 'We are not collecting in your area just yet, but we are growing and plan to cover more of South Wales soon. We have kept your details and will be in touch as soon as we start collecting near you.';
             }

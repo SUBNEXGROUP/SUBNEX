@@ -113,6 +113,24 @@ for (const [label, app, mail] of [
   if (label.startsWith('G')) check('G form shows error, no thank-you', !!st.alert, st);
   await ctx.close();
 }
+// M. Repeat booking on the collection day: window shown, Google unchanged, no OpenAI event
+{
+  const ctx = await consentCtx('granted');
+  const { pg } = await page(ctx, { app: { ok: true, new: false, booked: false, today_window: '1:55pm – 3:55pm' } });
+  await fillCollect(pg, AD);
+  const t = await pg.evaluate(() => document.getElementById('doneTitle').textContent + ' | ' + document.getElementById('doneText').textContent);
+  check('M collect: already booked + today window shown', /already booked in/.test(t) && t.includes('1:55pm – 3:55pm'), t);
+  check('M collect: no lead_created on repeat', (await measures(pg)).length === 0);
+  check('M collect: Google conversion unchanged (still fires)', (await gConversions(pg)) === 1);
+  const { pg: pm } = await page(ctx, { app: { ok: true, new: false, booked: false, today_window: '1:55pm – 3:55pm' } });
+  await pm.goto(BASE + '/');
+  await pm.fill('#fname', 'Jane Test'); await pm.fill('#phone', '07700 900123'); await pm.fill('#email', 'jane@example.com');
+  await pm.fill('#postcode', 'CF10 1AA'); await pm.fill('#address', '12 Test Street, Cardiff');
+  await pm.click('.qty-btn[data-value="1-5"]'); await pm.click('#bookingForm .form-submit'); await pm.waitForTimeout(1500);
+  const tm = await pm.evaluate(() => { const s = document.querySelector('.form-success, #formSuccess, [id*=uccess]'); return s ? s.textContent : document.body.innerText.slice(0, 0); });
+  check('M main page: already booked + today window shown', /already booked in/.test(tm) && tm.includes('1:55pm – 3:55pm'), tm.slice(0, 200));
+  await ctx.close();
+}
 // H. Rejected cookies → OpenAI script never requested
 {
   const ctx = await consentCtx('denied');
