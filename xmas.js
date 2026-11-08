@@ -8,8 +8,8 @@
 
   var START = new Date(2026, 10, 8);   // 8 ноября 2026
   var END   = new Date(2027, 0, 8);    // до конца 7 января 2027
-  var BANNER_TEXT = 'Merry Christmas &amp; a Happy New Year from the SUBNEX team';
-  var BANNER_SHORT = 'Merry Christmas from SUBNEX';   // на телефоне, в одну строку
+  /* <br class="xm-br"> — перенос строки только на телефоне, чтобы текст шёл ровно в две строки по центру */
+  var BANNER_TEXT = 'Merry Christmas &amp; a Happy New Year<br class="xm-br"> from the SUBNEX team';
 
   var q = new URLSearchParams(location.search).get('xmas');
   var now = new Date();
@@ -61,10 +61,12 @@
       'border:1px solid rgba(245,196,81,.45);box-shadow:0 0 24px rgba(229,72,77,.18);position:relative;z-index:2;}',
     '.xmas-banner .xm-star{color:var(--xm-gold);font-size:1rem;line-height:1;animation:xm-twinkle 2.6s ease-in-out infinite;}',
     '@keyframes xm-twinkle{0%,100%{opacity:1;transform:scale(1) rotate(0)}50%{opacity:.6;transform:scale(.85) rotate(20deg)}}',
-    '.xmas-banner .xm-short{display:none;}',
+    '.xmas-banner .xm-br{display:none;}',
     '.hero-copy .xmas-banner{margin-top:22px;}',
-    '@media (max-width:760px){.xmas-banner{font-size:.78rem;padding:.45rem 1rem;gap:.55rem;white-space:nowrap;}',
-      '.xmas-banner .xm-long{display:none;}.xmas-banner .xm-short{display:inline;}}',
+    '@media (max-width:760px){.xmas-banner{font-size:.8rem;line-height:1.4;padding:.55rem 1.1rem;gap:.7rem;border-radius:22px;',
+      'margin-left:auto;margin-right:auto;text-align:center;}',
+      '.xmas-banner .xm-br{display:inline;}.xmas-banner .xm-text{white-space:nowrap;}}',
+    '@media (max-width:400px){.xmas-banner{font-size:.72rem;padding:.5rem .85rem;gap:.5rem;}}',
 
     /* шапка на логотипе */
     '.xm-hat-host{position:relative !important;}',
@@ -166,7 +168,7 @@
     if (!spot) return;
     var b = document.createElement('div');
     b.className = 'xmas-banner';
-    b.innerHTML = '<span class="xm-star" aria-hidden="true">✦</span><span class="xm-long">' + BANNER_TEXT + '</span><span class="xm-short">' + BANNER_SHORT + '</span><span class="xm-star" aria-hidden="true">✦</span>';
+    b.innerHTML = '<span class="xm-star" aria-hidden="true">✦</span><span class="xm-text">' + BANNER_TEXT + '</span><span class="xm-star" aria-hidden="true">✦</span>';
     spot.parentNode.insertBefore(b, spot);
     b.style.display = 'flex'; b.style.width = 'fit-content';
   }
