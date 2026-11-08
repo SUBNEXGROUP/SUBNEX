@@ -61,6 +61,13 @@
     '@keyframes xm-twinkle{0%,100%{opacity:1;transform:scale(1) rotate(0)}50%{opacity:.6;transform:scale(.85) rotate(20deg)}}',
     '@media (max-width:760px){.xmas-banner{font-size:.74rem;padding:.45rem .9rem;}}',
 
+    /* шапка на логотипе */
+    '.xm-hat-host{position:relative !important;}',
+    '.xm-hat{position:absolute;pointer-events:none;z-index:3;transform-origin:30% 90%;transform:rotate(-22deg);',
+      'filter:drop-shadow(0 2px 3px rgba(0,0,0,.45));animation:xm-hat 4s ease-in-out infinite;}',
+    '@keyframes xm-hat{0%,100%{transform:rotate(-22deg)}50%{transform:rotate(-16deg)}}',
+    '@media (prefers-reduced-motion:reduce){.xm-hat{animation:none;}}',
+
     '@media (prefers-reduced-motion:reduce){.xmas-garland li,.xmas-banner .xm-star{animation:none;}}'
   ].join('');
 
@@ -78,6 +85,7 @@
     document.documentElement.classList.add('xmas');
     garland();
     frost();
+    hat();
     banner();
     snow();
   });
@@ -109,6 +117,33 @@
       document.body.style.position = document.body.style.position || 'relative';
       document.body.appendChild(g);
     }
+  }
+
+  /* ───────── Шапка Деда Мороза на логотипе ───────── */
+  function hat() {
+    var img = document.querySelector('.nav-logo img') || document.querySelector('.brand img');
+    if (!img) return;
+    var host = img.parentNode;
+    host.classList.add('xm-hat-host');
+    var s = img.getBoundingClientRect().width || img.width || 40;
+    var hr = host.getBoundingClientRect(), ir = img.getBoundingClientRect();
+    var w = Math.round(s * 0.74);
+    var h = document.createElement('span');
+    h.className = 'xm-hat';
+    h.setAttribute('aria-hidden', 'true');
+    h.style.width = w + 'px';
+    h.style.left = Math.round(ir.left - hr.left + s * 0.06) + 'px';
+    h.style.top = Math.round(ir.top - hr.top - s * 0.34) + 'px';
+    h.innerHTML =
+      '<svg viewBox="0 0 64 56" width="100%" style="display:block;overflow:visible">' +
+        '<path d="M8 42 C10 22 22 6 40 6 C50 6 56 12 58 22 C52 16 46 15 42 18 C40 26 44 34 50 42 Z" fill="#E5484D"/>' +
+        '<path d="M8 42 C10 22 22 6 40 6 C44 6 47 7 49 9 C34 10 22 22 20 42 Z" fill="#FF6B6F" opacity=".55"/>' +
+        '<rect x="3" y="38" width="52" height="13" rx="6.5" fill="#F4F7FF"/>' +
+        '<rect x="3" y="38" width="52" height="5" rx="2.5" fill="#FFFFFF"/>' +
+        '<circle cx="58" cy="24" r="6.5" fill="#F4F7FF"/>' +
+        '<circle cx="56.5" cy="22.5" r="2.4" fill="#FFFFFF"/>' +
+      '</svg>';
+    host.appendChild(h);
   }
 
   /* ───────── Иней на главных кнопках ───────── */
