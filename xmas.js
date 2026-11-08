@@ -9,6 +9,7 @@
   var START = new Date(2026, 10, 8);   // 8 ноября 2026
   var END   = new Date(2027, 0, 8);    // до конца 7 января 2027
   var BANNER_TEXT = 'Merry Christmas &amp; a Happy New Year from the SUBNEX team';
+  var BANNER_SHORT = 'Merry Christmas from SUBNEX';   // на телефоне, в одну строку
 
   var q = new URLSearchParams(location.search).get('xmas');
   var now = new Date();
@@ -29,8 +30,8 @@
     '.xmas-garland{position:absolute;left:0;right:0;top:100%;height:26px;pointer-events:none;overflow:hidden;z-index:1;}',
     '.xmas-garland.is-page{position:absolute;top:0;z-index:996;}',
     '.xmas-garland svg{position:absolute;top:0;left:0;width:100%;height:12px;}',
-    '.xmas-garland ul{list-style:none;margin:0;padding:0 8px;display:flex;justify-content:space-between;position:relative;}',
-    '.xmas-garland li{position:relative;width:9px;height:14px;margin-top:5px;border-radius:50% 50% 50% 50%/40% 40% 60% 60%;',
+    '.xmas-garland ul{list-style:none;margin:0;padding:0;position:absolute;inset:0;}',
+    '.xmas-garland li{position:absolute;top:0;width:9px;margin-left:-4.5px;height:14px;margin-top:5px;border-radius:50% 50% 50% 50%/40% 40% 60% 60%;',
       'background:var(--c);box-shadow:0 0 10px 2px var(--c);animation:xm-blink 2.4s ease-in-out infinite;animation-delay:var(--d);}',
     '.xmas-garland li::before{content:"";position:absolute;top:-4px;left:2px;width:5px;height:4px;border-radius:2px;background:#3A3A55;}',
     '@keyframes xm-blink{0%,100%{opacity:1;box-shadow:0 0 12px 3px var(--c);}50%{opacity:.35;box-shadow:0 0 2px 0 var(--c);}}',
@@ -55,11 +56,15 @@
     /* праздничная плашка */
     '.xmas-banner{display:inline-flex;align-items:center;gap:.6rem;margin:0 0 1rem;padding:.5rem 1.1rem;border-radius:100px;',
       'font:600 .82rem/1.3 Poppins,Outfit,sans-serif;color:#fff;letter-spacing:.01em;',
-      'background:linear-gradient(90deg,rgba(229,72,77,.22),rgba(245,196,81,.18));',
+      'background:linear-gradient(90deg,rgba(229,72,77,.24),rgba(245,196,81,.18)),rgba(18,18,31,.82);',
+      '-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);',
       'border:1px solid rgba(245,196,81,.45);box-shadow:0 0 24px rgba(229,72,77,.18);position:relative;z-index:2;}',
     '.xmas-banner .xm-star{color:var(--xm-gold);font-size:1rem;line-height:1;animation:xm-twinkle 2.6s ease-in-out infinite;}',
     '@keyframes xm-twinkle{0%,100%{opacity:1;transform:scale(1) rotate(0)}50%{opacity:.6;transform:scale(.85) rotate(20deg)}}',
-    '@media (max-width:760px){.xmas-banner{font-size:.74rem;padding:.45rem .9rem;}}',
+    '.xmas-banner .xm-short{display:none;}',
+    '.hero-copy .xmas-banner{margin-top:22px;}',
+    '@media (max-width:760px){.xmas-banner{font-size:.78rem;padding:.45rem 1rem;gap:.55rem;white-space:nowrap;}',
+      '.xmas-banner .xm-long{display:none;}.xmas-banner .xm-short{display:inline;}}',
 
     /* шапка на логотипе */
     '.xm-hat-host{position:relative !important;}',
@@ -92,13 +97,14 @@
 
   /* ───────── Гирлянда ───────── */
   function garland() {
-    var nav = document.getElementById('navbar');
+    var nav = document.getElementById('navbar') || document.querySelector('header.top');
     var g = document.createElement('div');
     g.className = 'xmas-garland' + (nav ? '' : ' is-page');
     g.setAttribute('aria-hidden', 'true');
 
     var colors = ['#E5484D', '#F5C451', '#2ECC71', '#4FC3F7', '#F5C451'];
-    var n = Math.max(10, Math.min(38, Math.round(window.innerWidth / 42)));
+    var n = Math.max(8, Math.min(38, Math.round(window.innerWidth / 42)));
+    if (n % 2) n++;   // чётное число — рисунок симметричен относительно центра
     var html = '<svg viewBox="0 0 100 12" preserveAspectRatio="none"><path d="M0 2 ';
     for (var i = 0; i < n; i++) {
       var x1 = (i + .5) / n * 100, x2 = (i + 1) / n * 100;
@@ -106,7 +112,7 @@
     }
     html += '" fill="none" stroke="#3A3A55" stroke-width="1.2" vector-effect="non-scaling-stroke"/></svg><ul>';
     for (var j = 0; j < n; j++) {
-      html += '<li style="--c:' + colors[j % colors.length] + ';--d:' + (-(j * 0.37) % 2.4).toFixed(2) + 's"></li>';
+      html += '<li style="left:' + ((j + .5) / n * 100).toFixed(3) + '%;--c:' + colors[j % colors.length] + ';--d:' + (-(j * 0.37) % 2.4).toFixed(2) + 's"></li>';
     }
     g.innerHTML = html + '</ul>';
 
@@ -127,13 +133,15 @@
     host.classList.add('xm-hat-host');
     var s = img.getBoundingClientRect().width || img.width || 40;
     var hr = host.getBoundingClientRect(), ir = img.getBoundingClientRect();
-    var w = Math.round(s * 0.74);
+    var w = Math.round(s * (mobile ? 0.66 : 0.74));
     var h = document.createElement('span');
     h.className = 'xm-hat';
     h.setAttribute('aria-hidden', 'true');
     h.style.width = w + 'px';
     h.style.left = Math.round(ir.left - hr.left + s * 0.06) + 'px';
-    h.style.top = Math.round(ir.top - hr.top - s * 0.34) + 'px';
+    var top = ir.top - s * 0.34;
+    if (top < 4) top = 4;   // не упираться в верх экрана
+    h.style.top = Math.round(top - hr.top) + 'px';
     h.innerHTML =
       '<svg viewBox="0 0 64 56" width="100%" style="display:block;overflow:visible">' +
         '<path d="M8 42 C10 22 22 6 40 6 C50 6 56 12 58 22 C52 16 46 15 42 18 C40 26 44 34 50 42 Z" fill="#E5484D"/>' +
@@ -158,7 +166,7 @@
     if (!spot) return;
     var b = document.createElement('div');
     b.className = 'xmas-banner';
-    b.innerHTML = '<span class="xm-star" aria-hidden="true">✦</span><span>' + BANNER_TEXT + '</span><span class="xm-star" aria-hidden="true">✦</span>';
+    b.innerHTML = '<span class="xm-star" aria-hidden="true">✦</span><span class="xm-long">' + BANNER_TEXT + '</span><span class="xm-short">' + BANNER_SHORT + '</span><span class="xm-star" aria-hidden="true">✦</span>';
     spot.parentNode.insertBefore(b, spot);
     b.style.display = 'flex'; b.style.width = 'fit-content';
   }
