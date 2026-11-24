@@ -840,6 +840,9 @@
       margin-top: .3rem;
     }
     .error-msg.show { display: block; }
+    .email-hint { display: none; font-size: .75rem; color: #F5B942; font-family: var(--head); font-weight: 600; margin-top: .3rem; }
+    .email-hint.show { display: block; }
+    .email-hint button { background: none; border: 0; padding: 0; color: #2ECC71; font: inherit; text-decoration: underline; cursor: pointer; }
     /* Calendar input dark fix */
     input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(.5); cursor: pointer; }
 
@@ -1385,16 +1388,17 @@
                   <div class="error-msg" id="fnameErr">Please enter your full name.</div>
                 </div>
                 <div class="form-group">
-                  <label for="phone">Phone Number <span style="color:var(--faint);font-weight:400;">(optional)</span></label>
+                  <label for="phone">Mobile Number <span style="color:var(--faint);font-weight:400;">(or email)</span></label>
                   <input type="tel" id="phone" name="Phone Number" placeholder="07700 900000" autocomplete="tel"/>
                   <div class="error-msg" id="phoneErr">Please enter a valid phone number.</div>
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label for="email">Email Address *</label>
+                  <label for="email">Email Address <span style="color:var(--faint);font-weight:400;">(or mobile)</span></label>
                   <input type="email" id="email" name="Email Address" placeholder="jane@example.com" autocomplete="email"/>
                   <div class="error-msg" id="emailErr">Please enter a valid email address.</div>
+                  <div class="email-hint" id="emailHint" role="status"></div>
                 </div>
                 <div class="form-group">
                   <label for="postcode">Postcode *</label>
@@ -1725,14 +1729,109 @@
 
     // Формат индекса — как в приложении: иначе заявка дойдёт только копией на info@, без письма клиенту.
     var PC_RE = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/;
+    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/;
+    var MAIL_GONE = 'This email address doesn\u2019t exist. Please check it, or leave just your mobile number.';
+    function val(id) { return document.getElementById(id).value.trim(); }
+    function say(errId, text) { document.getElementById(errId).textContent = text; }
+
+    // Мобильный Великобритании в тех же записях, что понимает приложение: 07…, +44 7…, 0044 7…, +44 (0)7….
+    function isUkMobile(ph) {
+      var p = ph.replace(/\(\s*0\s*\)/g, '').replace(/[\s().\-\u200B]/g, '');
+      if (/^0044/.test(p)) p = '+' + p.slice(2);
+      if (/^\+440\d{10}$/.test(p)) p = '+44' + p.slice(4);
+      if (/^07\d{9}$/.test(p)) p = '+44' + p.slice(1);
+      if (/^44\d{10}$/.test(p)) p = '+' + p;
+      return /^\+447\d{9}$/.test(p);
+    }
+
+    // Опечатка в домене почты: «gmial.com» → «Did you mean …@gmail.com?». Только подсказка, отправке не мешает.
+    var MAIL_DOMAINS = ['gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.co.uk', 'outlook.com', 'live.com', 'live.co.uk',
+      'msn.com', 'yahoo.com', 'yahoo.co.uk', 'ymail.com', 'icloud.com', 'me.com', 'mac.com', 'aol.com', 'aol.co.uk',
+      'btinternet.com', 'btopenworld.com', 'talk21.com', 'sky.com', 'virginmedia.com', 'virgin.net', 'ntlworld.com',
+      'blueyonder.co.uk', 'talktalk.net', 'tiscali.co.uk', 'gmx.com', 'gmx.co.uk', 'mail.com', 'protonmail.com', 'proton.me'];
+    function editDistance(a, b) {
+      var d = [], i, j;
+      for (i = 0; i <= a.length; i++) { d[i] = [i]; }
+      for (j = 0; j <= b.length; j++) { d[0][j] = j; }
+      for (i = 1; i <= a.length; i++) {
+        for (j = 1; j <= b.length; j++) {
+          var cost = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1;
+          d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+          if (i > 1 && j > 1 && a.charAt(i - 1) === b.charAt(j - 2) && a.charAt(i - 2) === b.charAt(j - 1)) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+        }
+      }
+      return d[a.length][b.length];
+    }
+    function suggestEmail(em) {
+      var at = em.lastIndexOf('@');
+      if (at < 1) return '';
+      var dom = em.slice(at + 1).toLowerCase(), best = '', bestD = 99;
+      if (!dom || MAIL_DOMAINS.indexOf(dom) >= 0) return '';
+      MAIL_DOMAINS.forEach(function(x) { var dd = editDistance(dom, x); if (dd < bestD) { bestD = dd; best = x; } });
+      return bestD <= (dom.length >= 10 ? 2 : 1) ? em.slice(0, at + 1) + best : '';
+    }
+    function showSuggestion(em) {
+      var hint = document.getElementById('emailHint'), s = suggestEmail(em);
+      hint.textContent = '';
+      hint.classList.toggle('show', !!s);
+      if (!s) return;
+      hint.appendChild(document.createTextNode('Did you mean '));
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = s;
+      b.addEventListener('click', function() {
+        document.getElementById('email').value = s;
+        hint.classList.remove('show');
+        setError('email', 'emailErr', false);
+        checkMailbox(s);
+      });
+      hint.appendChild(b);
+      hint.appendChild(document.createTextNode('?'));
+    }
+
+    // Есть ли такой ящик: спрашиваем наш сервер (письмо клиенту не отправляется). Нет ответа — пропускаем.
+    var CHECK_URL = 'https://hgnihlkiccfbrejbpojp.supabase.co/functions/v1/subnex-email-check';
+    var mailState = { email: '', result: null, promise: null };
+    function checkMailbox(raw) {
+      var em = String(raw || '').trim().toLowerCase();
+      if (!EMAIL_RE.test(em)) return Promise.resolve('invalid');
+      if (mailState.email === em && mailState.promise) return mailState.promise;
+      mailState = { email: em, result: null, promise: null };
+      mailState.promise = Promise.race([
+        fetch(CHECK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: APP_KEY, Authorization: 'Bearer ' + APP_KEY },
+          body: JSON.stringify({ email: em })
+        }).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; }),
+        new Promise(function(res) { setTimeout(function() { res(null); }, 9000); })
+      ]).then(function(j) {
+        var r = j && j.result === 'invalid' ? 'invalid' : (j && j.result) || 'unknown';
+        if (mailState.email === em) {
+          mailState.result = r;
+          if (r === 'invalid' && val('email').toLowerCase() === em) { say('emailErr', MAIL_GONE); setError('email', 'emailErr', true); }
+        }
+        return r;
+      });
+      return mailState.promise;
+    }
 
     function validate() {
       var ok = true;
       function chk(id, errId, cond) { setError(id, errId, cond); if (cond) ok = false; }
       chk('fname',    'fnameErr',    document.getElementById('fname').value.trim().length < 2);
-      var ph = document.getElementById('phone').value.trim();
-      chk('phone',    'phoneErr',    ph !== '' && (!/^[\d\s+\-()\u200B]{7,}$/.test(ph) || ph.replace(/\D/g, '').length < 10));
-      chk('email',    'emailErr',    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(document.getElementById('email').value.trim()));
+      // Email или мобильный — хватит одного. Без email даты приходят по SMS, поэтому номер должен быть мобильным.
+      var ph = val('phone'), em = val('email');
+      var phBad = ph !== '' && (!/^[\d\s+\-()\u200B]{7,}$/.test(ph) || ph.replace(/\D/g, '').length < 10);
+      if (ph === '' && em === '') {
+        say('phoneErr', 'Please enter your mobile number or email address.');
+        say('emailErr', 'Please enter your email address or mobile number.');
+        chk('phone', 'phoneErr', true); chk('email', 'emailErr', true);
+      } else {
+        say('phoneErr', em === '' && !phBad ? 'Without an email we text you, so please enter a UK mobile number (07…) — or add your email.' : 'Please enter a valid phone number.');
+        chk('phone', 'phoneErr', phBad || (em === '' && !isUkMobile(ph)));
+        say('emailErr', mailState.email === em.toLowerCase() && mailState.result === 'invalid' ? MAIL_GONE : 'Please enter a valid email address.');
+        chk('email', 'emailErr', em !== '' && (!EMAIL_RE.test(em) || (mailState.email === em.toLowerCase() && mailState.result === 'invalid')));
+      }
       chk('postcode', 'postcodeErr', !PC_RE.test(document.getElementById('postcode').value.trim().toUpperCase()));
       chk('address',  'addressErr',  document.getElementById('address').value.trim().length < 5);
       // quantity radio
@@ -1749,7 +1848,15 @@
     ['fname','phone','email','postcode','address'].forEach(function(id) {
       document.getElementById(id).addEventListener('input', function() {
         setError(id, id + 'Err', false);
+        if (id === 'email' || id === 'phone') { setError('phone', 'phoneErr', false); setError('email', 'emailErr', false); }
+        if (id === 'email') document.getElementById('emailHint').classList.remove('show');
       });
+    });
+    document.getElementById('email').addEventListener('blur', function() {
+      var em = val('email');
+      if (!em || !EMAIL_RE.test(em)) return;
+      showSuggestion(em);
+      checkMailbox(em);
     });
     document.querySelectorAll('.qty-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
@@ -1765,8 +1872,6 @@
     var openedAt = Date.now();
     var APP_URL = 'https://hgnihlkiccfbrejbpojp.supabase.co/rest/v1/rpc/subnex_web_booking';
     var APP_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmlobGtpY2NmYnJlamJwb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTU2MDMsImV4cCI6MjA5OTI3MTYwM30.AqPTMYqWt_Kc1IZX5pkB9MvrGL1IXr_PAVlH9I0g3ZQ';
-    function val(id) { return document.getElementById(id).value.trim(); }
-
     // Проверка индекса: обслуживаем ли район. Только подсказка — отправить заявку всё равно можно.
     var areaTimer = null, areaSeq = 0;
     function checkArea() {
@@ -1792,7 +1897,28 @@
 
     form.addEventListener('submit', function(e) {
       e.preventDefault();
-      if (validate()) {
+      if (!validate()) return;
+      var btn = form.querySelector('.form-submit');
+      var btnHtml = btn.innerHTML;
+      var em = val('email');
+      if (!em) { send(btnHtml); return; }
+      btn.textContent = 'Checking…';
+      btn.disabled = true;
+      checkMailbox(em).then(function(r) {
+        if (r === 'invalid') {
+          btn.innerHTML = btnHtml;
+          btn.disabled = false;
+          say('emailErr', MAIL_GONE);
+          setError('email', 'emailErr', true);
+          document.getElementById('email').focus();
+          return;
+        }
+        send(btnHtml);
+      });
+    });
+
+    function send(btnHtml) {
+      {
         var btn = form.querySelector('.form-submit');
         btn.textContent = 'Sending…';
         btn.disabled = true;
@@ -1824,7 +1950,8 @@
             } })
           });
         }).then(function(res) {
-          if (!res.ok) return false;
+          // Отказ приложения: код ошибки нужен форме (например, EMAIL_NOT_FOUND — ящика нет).
+          if (!res.ok) return res.json().then(function(j) { return { error: (j && j.message) || 'ERROR' }; }, function() { return false; });
           return res.json().then(function(j) { return j || true; }, function() { return true; });
         }).catch(function() { return false; });
 
@@ -1835,6 +1962,16 @@
         }).then(function(res) { return res.ok; }).catch(function() { return false; });
 
         Promise.all([toApp, toMail]).then(function(r) {
+          if (r[0] && r[0].error === 'EMAIL_NOT_FOUND') {
+            // Ящика нет (или письмо на него уже возвращалось) — заявку не принимаем, клиент исправит адрес.
+            btn.innerHTML = btnHtml;
+            btn.disabled = false;
+            say('emailErr', MAIL_GONE);
+            setError('email', 'emailErr', true);
+            document.getElementById('email').focus();
+            return;
+          }
+          if (r[0] && r[0].error) r[0] = false;
           if (r[0] || r[1]) {
             if (window.SubnexSite && !(r[0] && r[0].served === false)) SubnexSite.lead(val('email'), val('phone'), r[0]);
             if (r[0] && r[0].today_window) {
@@ -1844,6 +1981,8 @@
             } else if (r[0] && r[0].served === false) {
               success.querySelector('h3').textContent = 'Thank you!';
               success.querySelector('p').textContent = 'We are not collecting in your area just yet, but we are growing and plan to cover more of South Wales soon. We have kept your details and will be in touch as soon as we start collecting near you.';
+            } else if (!val('email')) {
+              success.querySelector('p').textContent = 'Thank you! We\u2019ve received your request. We\u2019ll text you a collection date for your area shortly \u2014 you can confirm it or choose another day that suits you. Please keep your bags indoors until you receive our confirmation.';
             }
             form.style.display = 'none';
             success.style.display = 'block';
@@ -1855,7 +1994,7 @@
           }
         });
       }
-    });
+    }
   })();
   </script>
   <script src="/xmas.js?v=20261108" defer></script>
